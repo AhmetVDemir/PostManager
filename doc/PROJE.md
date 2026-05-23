@@ -262,16 +262,11 @@ Aynı API, mobile'da native dosya sistemi + Share intent kullanır. UI değişme
 
 ---
 
-## 7. Genişletme Noktaları
+## 7. Yol haritası
 
-| Özellik | Karmaşıklık | Notlar |
-|---|---|---|
-| Şablon kütüphanesi | Orta | LocalStorage'da AppState snapshot'ları, kaydet/yükle |
-| Capacitor mobile build | Orta | `npm install @capacitor/core @capacitor/android`, native plugin'le `fileStorage.ts` extend |
-| Tauri masaüstü .exe | Düşük | `npx tauri init` + build script |
-| Undo / Redo | Orta | State history stack, Ctrl+Z |
-| Video export | Yüksek | Konva animation + FFmpeg.wasm |
-| Sticker / SVG katmanı | Orta | EmojiLayer'a benzer yeni layer tipi + Konva.Image |
+Detaylı sürüm planı için → [ROADMAP.md](ROADMAP.md)
+
+**Sıradaki büyük sprint (v0.3)**: Sade Mod (akış sadeleştirme) + yazı arka plan kutusu + paragraf desteği + daha fazla font/filter + AI yazı içeriği önerisi.
 
 ---
 
