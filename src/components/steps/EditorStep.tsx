@@ -10,7 +10,7 @@ import { EmojiPicker } from '../EmojiPicker'
 import { loadGoogleFont, FONTS_BY_MOOD } from '../../data/fonts'
 import { TEXT_STYLE_PRESETS, applyStylePreset } from '../../data/textStylePresets'
 import { analyzeBackground, suggestStyle } from '../../services/imageAnalysis'
-import { suggestStyleWithAI } from '../../services/pollinationsAI'
+import { suggestStyleWithAI, CloudAIError } from '../../services/cloudAI'
 
 interface Props {
   state: AppState
@@ -138,13 +138,23 @@ export function EditorStep({ state, onUpdate, onBack, onNext }: Props) {
         state.layers.find((l): l is TextLayer => l.type === 'text')?.text ??
         'short headline'
       const sug = await suggestStyleWithAI(state.background, targetText)
-      if (!sug) {
-        setAiError('AI cevap vermedi (internet bağlantısı veya servis sorunu olabilir). Heuristic öneri kullanılıyor.')
-        return
-      }
       await applySuggestion(sug.presetId, sug.textColor, sug.reasoning, 'ai')
     } catch (e) {
-      setAiError(`AI hatası: ${e instanceof Error ? e.message : 'bilinmeyen'}`)
+      if (e instanceof CloudAIError) {
+        if (e.code === 'dev-no-function') {
+          setAiError(
+            "ℹ️ Online AI sadece Cloudflare'e deploy edildikten sonra çalışır. Yerel dev modunda heuristic 'Akıllı Öner' butonunu kullanabilirsin.",
+          )
+        } else if (e.code === 'not-configured') {
+          setAiError(
+            '⚠ Cloudflare Pages env vars\'ında LLM_API_KEY tanımlı değil. doc/DEPLOY.md\'ye bak.',
+          )
+        } else {
+          setAiError(`AI hatası: ${e.message}`)
+        }
+      } else {
+        setAiError(`AI hatası: ${e instanceof Error ? e.message : 'bilinmeyen'}`)
+      }
     } finally {
       setAiRefining(false)
     }

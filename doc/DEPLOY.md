@@ -59,7 +59,54 @@ git push -u origin main
 
 ---
 
-## 3. Sonsuza dek otomatik deploy
+## 3. AI özelliği için API key ekle (5 dakika)
+
+"🤖 AI ile geliştir" butonunun çalışması için bir LLM provider key'i lazım. **Bu key Cloudflare Pages'in sunucu tarafında durur, bundle'a girmez, public repo'da görünmez.** Önerilen provider: **Groq** (günde 14400 ücretsiz istek, çok cömert).
+
+### A) Groq hesap aç + key al
+
+1. [console.groq.com](https://console.groq.com/) → "Sign up" (GitHub veya Google ile 30 sn)
+2. Soldan **API Keys** → **Create API Key**
+3. İsim ver (`postmanager`), **Create** → key görünür (`gsk_xxxxx...`)
+4. **Kopyala** — bir daha gösterilmez
+
+> Alternatif providerlar: OpenRouter (free models), Hugging Face Router, OpenAI compatible. Aynı `LLM_BASE_URL` + `LLM_MODEL` + `LLM_API_KEY` formatı.
+
+### B) Cloudflare Pages'e env vars ekle
+
+1. Cloudflare dashboard → Workers & Pages → **postmanager** projesi
+2. **Settings** → **Variables and Secrets** → **Production**
+3. Aşağıdaki üç değişkeni ekle (her birini **Encrypt** olarak işaretle ki secret olsun):
+
+| Variable | Value |
+|---|---|
+| `LLM_API_KEY` | yukarıda aldığın `gsk_xxxxx` |
+| `LLM_BASE_URL` | `https://api.groq.com/openai/v1` |
+| `LLM_MODEL` | `llama-3.2-90b-vision-preview` |
+
+4. **Save**
+5. **Deployments** → en son deployment'ın yanında **⋯** → **Retry deployment** (env vars'ı pickup etsin)
+
+### C) Test
+
+Site'ini aç → bir arka plan + editör → **🤖 AI ile geliştir** → birkaç saniye içinde önerini gör.
+
+Hata alırsan: tarayıcı console'da kırmızı bir mesaj olacak. Sık sorunlar:
+- **"503 not configured"** → env vars eklenmemiş veya redeploy yapılmamış
+- **"502 LLM upstream"** → Groq rate limit (14400/gün) doldu veya key yanlış
+- **"dev modunda /api/suggest yok"** → bu normal, sadece production'da çalışır. Local'de heuristic'i kullan.
+
+### Alternatif providerlar (aynı LLM_API_KEY pattern'i)
+
+| Provider | LLM_BASE_URL | LLM_MODEL | Free tier |
+|---|---|---|---|
+| **Groq** (önerilen) | `https://api.groq.com/openai/v1` | `llama-3.2-90b-vision-preview` | 14400/gün |
+| OpenRouter | `https://openrouter.ai/api/v1` | `meta-llama/llama-3.2-11b-vision-instruct:free` | düşük (provider'a göre) |
+| HF Router | `https://router.huggingface.co/v1` | `meta-llama/Llama-3.2-11B-Vision-Instruct` | aylık kredi (~$0.10) |
+
+---
+
+## 4. Sonsuza dek otomatik deploy
 
 İlk bağlantıdan sonra **her `git push main` otomatik deploy tetikler**. Manuel müdahale yok. Build log'larını Cloudflare dashboard'undan görebilirsin.
 
@@ -67,7 +114,7 @@ PR'lardan da preview deployment'lar açılır — feature branch test edilebilir
 
 ---
 
-## 4. (Opsiyonel) Kendi domain
+## 5. (Opsiyonel) Kendi domain
 
 `.pages.dev` URL'i gayet stabil, ama kendi domain'in varsa:
 
@@ -78,7 +125,7 @@ PR'lardan da preview deployment'lar açılır — feature branch test edilebilir
 
 ---
 
-## 5. Build/Çalışma notları
+## 6. Build/Çalışma notları
 
 ### PWA otomatik
 
@@ -91,7 +138,7 @@ PR'lardan da preview deployment'lar açılır — feature branch test edilebilir
 | Görüntüleme, filtre, yazı, glow/shadow, export | ✅ | ✅ | ✅ |
 | File System Access API (klasör seçici) | ✅ | ❌ (Downloads'a iner) | ❌ (Downloads'a iner) |
 | PWA "Ana ekrana ekle" | ✅ | ✅ | ✅ (iOS Safari) |
-| Pollinations.ai (AI ile geliştir) | ✅ | ✅ | ✅ |
+| 🤖 AI ile geliştir (CF Functions + Groq) | ✅ | ✅ | ✅ |
 
 Firefox/Safari kullanıcıları uygulamanın tamamını kullanır, sadece "klasör seç" yerine indirme yapılır.
 
@@ -105,7 +152,7 @@ Cloudflare Pages free tier: **sınırsız bandwidth + 500 build/ay**. 2-3 kullan
 
 ---
 
-## 6. Backup: Yerel kullanım
+## 7. Backup: Yerel kullanım
 
 Cloudflare hesabı istemiyorsan, aşağıdakiler de çalışır:
 
@@ -140,4 +187,6 @@ npx tauri build
 | Build "command not found: npm" hatası | Node version env var'ı eklenmemiş — Cloudflare Pages → Settings → Environment variables → `NODE_VERSION=20` |
 | Tarayıcıda boş sayfa | Console aç. Genelde 404 — `Build output directory: dist` doğru ayarlanmamış |
 | PWA "Ana ekrana ekle" görünmüyor | HTTPS gerek (Cloudflare otomatik halleder). Localhost dev'de Chrome zaten gösterir |
-| AI butonu hep "cevap vermedi" diyor | İnternet sorunu veya Pollinations rate limit — 10-30 sn sonra tekrar dene |
+| AI butonu hep hata diyor | Cloudflare Pages → Settings → Variables. `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL` üçü de tanımlı mı? Sonra **Retry deployment** yap. |
+| Dev modunda AI butonu "404" diyor | Normal — Vite dev server CF Functions çalıştırmaz. Production'da çalışır. Yerel test için `npx wrangler pages dev` kullanılabilir. |
+| Groq quota doldu (14400/gün) | Yarın resetlenir. Veya OpenRouter / HF Router'a env vars'ı değiştirip geç (key + base URL + model) |
