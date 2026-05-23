@@ -1,31 +1,24 @@
 import { useState } from 'react'
 import { Stepper } from './components/Stepper'
-import { UploadStep } from './components/steps/UploadStep'
+import { BackgroundStep } from './components/steps/BackgroundStep'
 import { SizeStep } from './components/steps/SizeStep'
-import { FilterStep } from './components/steps/FilterStep'
-import { TextStep } from './components/steps/TextStep'
+import { EditorStep } from './components/steps/EditorStep'
 import { ExportStep } from './components/steps/ExportStep'
-import { DEFAULT_TEXT, type AppState } from './types'
-
-const INITIAL: AppState = {
-  step: 1,
-  imageDataUrl: null,
-  format: 'square',
-  filter: 'none',
-  text: { ...DEFAULT_TEXT },
-}
+import { INITIAL_STATE, type AppState, type Step } from './types'
 
 export default function App() {
-  const [state, setState] = useState<AppState>(INITIAL)
-  const [maxReached, setMaxReached] = useState<1 | 2 | 3 | 4 | 5>(1)
+  const [state, setState] = useState<AppState>(INITIAL_STATE)
+  const [maxReached, setMaxReached] = useState<Step>(1)
 
-  const go = (step: 1 | 2 | 3 | 4 | 5) => {
-    setState((s) => ({ ...s, step }))
+  const update = (patch: Partial<AppState>) => setState((s) => ({ ...s, ...patch }))
+
+  const go = (step: Step) => {
+    update({ step })
     if (step > maxReached) setMaxReached(step)
   }
 
   const restart = () => {
-    setState(INITIAL)
+    setState(INITIAL_STATE)
     setMaxReached(1)
   }
 
@@ -58,55 +51,35 @@ export default function App() {
 
       <main className="flex-1 pb-12">
         {state.step === 1 && (
-          <UploadStep
-            currentImage={state.imageDataUrl}
-            onSelect={(url) => setState((s) => ({ ...s, imageDataUrl: url }))}
+          <BackgroundStep
+            background={state.background}
+            format={state.format}
+            onChange={(background) => update({ background })}
             onNext={() => go(2)}
           />
         )}
 
-        {state.step === 2 && state.imageDataUrl && (
+        {state.step === 2 && (
           <SizeStep
-            imageDataUrl={state.imageDataUrl}
+            background={state.background}
             format={state.format}
-            onChange={(format) => setState((s) => ({ ...s, format }))}
+            onChange={(format) => update({ format })}
             onBack={() => go(1)}
             onNext={() => go(3)}
           />
         )}
 
-        {state.step === 3 && state.imageDataUrl && (
-          <FilterStep
-            imageDataUrl={state.imageDataUrl}
-            format={state.format}
-            filter={state.filter}
-            onChange={(filter) => setState((s) => ({ ...s, filter }))}
+        {state.step === 3 && (
+          <EditorStep
+            state={state}
+            onUpdate={update}
             onBack={() => go(2)}
             onNext={() => go(4)}
           />
         )}
 
-        {state.step === 4 && state.imageDataUrl && (
-          <TextStep
-            imageDataUrl={state.imageDataUrl}
-            format={state.format}
-            filter={state.filter}
-            text={state.text}
-            onChange={(text) => setState((s) => ({ ...s, text }))}
-            onBack={() => go(3)}
-            onNext={() => go(5)}
-          />
-        )}
-
-        {state.step === 5 && state.imageDataUrl && (
-          <ExportStep
-            imageDataUrl={state.imageDataUrl}
-            format={state.format}
-            filter={state.filter}
-            text={state.text}
-            onBack={() => go(4)}
-            onRestart={restart}
-          />
+        {state.step === 4 && (
+          <ExportStep state={state} onBack={() => go(3)} onRestart={restart} />
         )}
       </main>
 

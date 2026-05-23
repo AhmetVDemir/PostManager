@@ -1,20 +1,21 @@
+import type { Step } from '../types'
+
 interface Props {
-  current: 1 | 2 | 3 | 4 | 5
-  onJump?: (step: 1 | 2 | 3 | 4 | 5) => void
-  maxReached: 1 | 2 | 3 | 4 | 5
+  current: Step
+  onJump?: (step: Step) => void
+  maxReached: Step
 }
 
-const STEPS: { id: 1 | 2 | 3 | 4 | 5; label: string }[] = [
-  { id: 1, label: 'Görsel' },
+const STEPS: { id: Step; label: string }[] = [
+  { id: 1, label: 'Arka plan' },
   { id: 2, label: 'Boyut' },
-  { id: 3, label: 'Filtre' },
-  { id: 4, label: 'Yazı' },
-  { id: 5, label: 'Kaydet' },
+  { id: 3, label: 'Editör' },
+  { id: 4, label: 'Kaydet' },
 ]
 
 export function Stepper({ current, onJump, maxReached }: Props) {
   return (
-    <div className="flex items-center justify-center gap-2 py-6">
+    <div className="flex items-center justify-center gap-1 px-4 py-4 sm:gap-2 sm:py-6">
       {STEPS.map((s, i) => {
         const done = s.id < current
         const active = s.id === current
@@ -26,7 +27,7 @@ export function Stepper({ current, onJump, maxReached }: Props) {
               disabled={!reachable}
               onClick={() => reachable && onJump?.(s.id)}
               className={[
-                'flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition',
+                'flex items-center gap-2 rounded-full px-2.5 py-2 text-sm font-medium transition sm:px-4',
                 active
                   ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/30'
                   : done
@@ -44,10 +45,10 @@ export function Stepper({ current, onJump, maxReached }: Props) {
               >
                 {done ? '✓' : s.id}
               </span>
-              {s.label}
+              <span className="hidden sm:inline">{s.label}</span>
             </button>
             {i < STEPS.length - 1 && (
-              <div className={['mx-1 h-px w-6', done ? 'bg-emerald-500/40' : 'bg-white/10'].join(' ')} />
+              <div className={['mx-0.5 h-px w-3 sm:mx-1 sm:w-6', done ? 'bg-emerald-500/40' : 'bg-white/10'].join(' ')} />
             )}
           </div>
         )

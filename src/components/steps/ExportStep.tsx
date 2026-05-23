@@ -1,31 +1,32 @@
 import { useEffect, useRef, useState } from 'react'
-import type { CanvasFormat, FilterPreset, TextLayer } from '../../types'
+import type { AppState } from '../../types'
 import { CANVAS_DIMENSIONS } from '../../types'
 import { PostCanvas, type PostCanvasHandle } from '../PostCanvas'
 import { useSaveDirectory } from '../../hooks/useSaveDirectory'
 
 interface Props {
-  imageDataUrl: string
-  format: CanvasFormat
-  filter: FilterPreset
-  text: TextLayer
+  state: AppState
   onBack: () => void
   onRestart: () => void
 }
 
-function buildFilename(format: CanvasFormat): string {
+type FormatChoice = 'png' | 'jpeg'
+
+function buildFilename(format: string, ext: FormatChoice): string {
   const d = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
   const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
-  return `post-${format}-${stamp}.png`
+  return `post-${format}-${stamp}.${ext === 'jpeg' ? 'jpg' : 'png'}`
 }
 
-export function ExportStep({ imageDataUrl, format, filter, text, onBack, onRestart }: Props) {
+export function ExportStep({ state, onBack, onRestart }: Props) {
   const canvasRef = useRef<PostCanvasHandle>(null)
   const save = useSaveDirectory()
   const [busy, setBusy] = useState(false)
   const [maxSize, setMaxSize] = useState(() => Math.min(520, window.innerHeight - 360))
   const [status, setStatus] = useState<{ kind: 'ok' | 'err' | 'info'; msg: string } | null>(null)
+  const [exportFormat, setExportFormat] = useState<FormatChoice>('png')
+  const [jpegQuality, setJpegQuality] = useState(92)
 
   useEffect(() => {
     const onResize = () => setMaxSize(Math.min(520, window.innerHeight - 360))
@@ -48,12 +49,15 @@ export function ExportStep({ imageDataUrl, format, filter, text, onBack, onResta
     setBusy(true)
     setStatus(null)
     try {
-      const blob = await canvasRef.current?.exportPng()
+      const blob = await canvasRef.current?.exportPng({
+        mimeType: exportFormat === 'jpeg' ? 'image/jpeg' : 'image/png',
+        quality: jpegQuality / 100,
+      })
       if (!blob) {
         setStatus({ kind: 'err', msg: 'Görsel oluşturulamadı' })
         return
       }
-      const filename = buildFilename(format)
+      const filename = buildFilename(state.format, exportFormat)
 
       if (save.supported && save.handle) {
         const res = await save.writeFile(filename, blob)
@@ -90,17 +94,20 @@ export function ExportStep({ imageDataUrl, format, filter, text, onBack, onResta
     <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6">
       <div className="text-center">
         <h2 className="text-3xl font-bold text-white">Önizleme & Kaydet</h2>
-        <p className="mt-2 text-white/60">{CANVAS_DIMENSIONS[format].width} × {CANVAS_DIMENSIONS[format].height} px — sosyal medya için hazır</p>
+        <p className="mt-2 text-white/60">
+          {CANVAS_DIMENSIONS[state.format].width} × {CANVAS_DIMENSIONS[state.format].height} px — sosyal medya için hazır
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr,340px]">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-[1fr,320px]">
         <div className="flex justify-center">
           <PostCanvas
             ref={canvasRef}
-            imageDataUrl={imageDataUrl}
-            format={format}
-            filter={filter}
-            text={text}
+            background={state.background}
+            format={state.format}
+            filter={state.filter}
+            layers={state.layers}
+            selectedLayerId={null}
             maxDisplaySize={maxSize}
           />
         </div>
@@ -141,13 +148,61 @@ export function ExportStep({ imageDataUrl, format, filter, text, onBack, onResta
             )}
           </div>
 
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+            <div className="text-xs font-medium uppercase tracking-wider text-white/40">Format</div>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setExportFormat('png')}
+                className={[
+                  'rounded-lg border px-3 py-2 text-sm font-medium transition',
+                  exportFormat === 'png'
+                    ? 'border-indigo-400 bg-indigo-500/15 text-white'
+                    : 'border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/[0.06]',
+                ].join(' ')}
+              >
+                PNG
+                <div className="text-[10px] font-normal text-white/50">Kayıpsız · daha büyük</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setExportFormat('jpeg')}
+                className={[
+                  'rounded-lg border px-3 py-2 text-sm font-medium transition',
+                  exportFormat === 'jpeg'
+                    ? 'border-indigo-400 bg-indigo-500/15 text-white'
+                    : 'border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/[0.06]',
+                ].join(' ')}
+              >
+                JPG
+                <div className="text-[10px] font-normal text-white/50">Küçük dosya · sosyal medya</div>
+              </button>
+            </div>
+            {exportFormat === 'jpeg' && (
+              <div className="mt-3">
+                <div className="flex items-center justify-between text-xs text-white/50">
+                  <span>Kalite</span>
+                  <span>{jpegQuality}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={50}
+                  max={100}
+                  value={jpegQuality}
+                  onChange={(e) => setJpegQuality(Number(e.target.value))}
+                  className="w-full accent-indigo-500"
+                />
+              </div>
+            )}
+          </div>
+
           <button
             type="button"
             onClick={handleSave}
             disabled={busy}
             className="rounded-xl bg-emerald-500 px-6 py-4 text-base font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400 disabled:opacity-60"
           >
-            {busy ? 'Kaydediliyor...' : '⬇  PNG olarak kaydet'}
+            {busy ? 'Kaydediliyor...' : `⬇  ${exportFormat.toUpperCase()} olarak kaydet`}
           </button>
 
           {status && (
