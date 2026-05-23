@@ -11,6 +11,7 @@ import { loadGoogleFont, FONTS_BY_MOOD } from '../../data/fonts'
 import { TEXT_STYLE_PRESETS, applyStylePreset } from '../../data/textStylePresets'
 import { analyzeBackground, suggestStyle } from '../../services/imageAnalysis'
 import { suggestStyleWithAI, CloudAIError } from '../../services/cloudAI'
+import { AIErrorBanner } from '../editor/AIErrorBanner'
 
 interface Props {
   state: AppState
@@ -25,7 +26,7 @@ export function EditorStep({ state, onUpdate, onBack, onNext }: Props) {
   const [suggesting, setSuggesting] = useState(false)
   const [aiRefining, setAiRefining] = useState(false)
   const [lastSuggestion, setLastSuggestion] = useState<{ presetLabel: string; reasoning: string; source: 'heuristic' | 'ai' } | null>(null)
-  const [aiError, setAiError] = useState<string | null>(null)
+  const [aiError, setAiError] = useState<CloudAIError | string | null>(null)
 
   useEffect(() => {
     const onResize = () => {
@@ -141,39 +142,9 @@ export function EditorStep({ state, onUpdate, onBack, onNext }: Props) {
       await applySuggestion(sug.presetId, sug.textColor, sug.reasoning, 'ai')
     } catch (e) {
       if (e instanceof CloudAIError) {
-        switch (e.code) {
-          case 'dev-no-function':
-            setAiError(
-              "ℹ️ Online AI sadece Cloudflare'e deploy edildikten sonra çalışır. Yerel dev modunda heuristic 'Akıllı Öner' butonunu kullanabilirsin.",
-            )
-            break
-          case 'not-configured':
-            setAiError(
-              "⚠ Cloudflare Pages env vars'ında LLM_API_KEY tanımlı değil. doc/DEPLOY.md adım 3'e bak.",
-            )
-            break
-          case 'rate-limit': {
-            const info = e.info
-            const resetHint = info?.reset
-              ? ` (${info.reset} sonra resetlenir)`
-              : info?.retryAfter
-              ? ` (${info.retryAfter} sn sonra)`
-              : ''
-            setAiError(
-              `🚦 AI istek limiti doldu${resetHint}. Provider quota tükendi. Çözümler: 1) Yarın tekrar dene, 2) Cloudflare Pages → Settings → Variables → LLM_API_KEY'i başka bir provider'ın key'iyle değiştir (OpenRouter veya Hugging Face — doc/DEPLOY.md). Heuristic Akıllı Öner her zaman çalışır.`,
-            )
-            break
-          }
-          case 'auth-failed':
-            setAiError(
-              '🔐 API key geçersiz veya iptal edilmiş. Cloudflare Pages → Settings → Variables → LLM_API_KEY değerini güncelle ve Retry deployment yap.',
-            )
-            break
-          default:
-            setAiError(`AI hatası: ${e.message}`)
-        }
+        setAiError(e)
       } else {
-        setAiError(`AI hatası: ${e instanceof Error ? e.message : 'bilinmeyen'}`)
+        setAiError(e instanceof Error ? e.message : 'Bilinmeyen hata')
       }
     } finally {
       setAiRefining(false)
@@ -241,9 +212,7 @@ export function EditorStep({ state, onUpdate, onBack, onNext }: Props) {
             </div>
           )}
           {aiError && (
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-              {aiError}
-            </div>
+            <AIErrorBanner error={aiError} onDismiss={() => setAiError(null)} />
           )}
 
           <LayerList

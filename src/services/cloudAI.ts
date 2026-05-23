@@ -60,16 +60,30 @@ export async function suggestStyleWithAI(
   background: Background,
   headline: string,
 ): Promise<StyleSuggestion> {
+  const endpoint = '/api/suggest'
+  const startedAt = Date.now()
+  const ctx = {
+    endpoint,
+    origin: typeof window !== 'undefined' ? window.location.origin : '(no window)',
+    href: typeof window !== 'undefined' ? window.location.href : '(no window)',
+  }
+  console.info('[CloudAI] → POST', ctx)
+
   let res: Response
   try {
-    res = await fetch('/api/suggest', {
+    res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ background, headline }),
     })
   } catch (e) {
-    throw new CloudAIError('network-error', `Network error: ${e instanceof Error ? e.message : String(e)}`)
+    console.error('[CloudAI] fetch failed', { ...ctx, error: e })
+    throw new CloudAIError(
+      'network-error',
+      `Network error (${ctx.origin}${endpoint}): ${e instanceof Error ? e.message : String(e)}. Tarayıcının F12 → Network sekmesinden detaya bak.`,
+    )
   }
+  console.info('[CloudAI] ← status', res.status, `(${Date.now() - startedAt}ms)`)
 
   if (res.status === 404) {
     throw new CloudAIError(
@@ -103,19 +117,24 @@ export async function suggestStyleWithAI(
   }
   if (!res.ok) {
     let detail = ''
+    let raw = ''
     try {
-      const data = (await res.json()) as { error?: string; detail?: string }
+      raw = await res.text()
+      const data = JSON.parse(raw) as { error?: string; detail?: string }
       detail = data.detail ? `${data.error}: ${data.detail}` : data.error ?? ''
-    } catch {/* ignore */}
-    throw new CloudAIError('upstream-error', detail || `Server returned ${res.status}`)
+    } catch {/* not json */}
+    console.error('[CloudAI] upstream error', { status: res.status, body: raw.slice(0, 400) })
+    throw new CloudAIError('upstream-error', detail || `Server returned ${res.status}: ${raw.slice(0, 200)}`)
   }
 
   let data: ServerSuggestion
   try {
     data = (await res.json()) as ServerSuggestion
-  } catch {
+  } catch (e) {
+    console.error('[CloudAI] response parse failed', e)
     throw new CloudAIError('bad-response', 'Cannot parse server response')
   }
+  console.info('[CloudAI] ✓ suggestion', data)
 
   if (!data.presetId || !(PRESET_IDS as readonly string[]).includes(data.presetId)) {
     throw new CloudAIError('bad-response', `Unknown presetId: ${data.presetId}`)
