@@ -25,7 +25,14 @@ export function EditorStep({ state, onUpdate, onBack, onNext }: Props) {
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [suggesting, setSuggesting] = useState(false)
   const [aiRefining, setAiRefining] = useState(false)
-  const [lastSuggestion, setLastSuggestion] = useState<{ presetLabel: string; reasoning: string; source: 'heuristic' | 'ai' } | null>(null)
+  const [lastSuggestion, setLastSuggestion] = useState<{
+    presetLabel: string
+    presetId: string
+    reasoning: string
+    source: 'heuristic' | 'ai'
+    appliedToId: string
+    previousLayer: TextLayer | null // null = new layer was created
+  } | null>(null)
   const [aiError, setAiError] = useState<CloudAIError | string | null>(null)
 
   useEffect(() => {
@@ -103,19 +110,58 @@ export function EditorStep({ state, onUpdate, onBack, onNext }: Props) {
     let target = selectedLayer?.type === 'text' ? selectedLayer : null
     if (!target) target = state.layers.find((l): l is TextLayer => l.type === 'text') ?? null
 
+    let appliedToId: string
+    let previousLayer: TextLayer | null
+
     if (target) {
+      previousLayer = { ...target } // snapshot before mutation
+      appliedToId = target.id
       const updated = applyStylePreset(preset, target)
       if (!preset.apply.color) updated.color = textColor
       updateLayer(target.id, updated)
       onUpdate({ selectedLayerId: target.id })
     } else {
+      previousLayer = null // no previous; undo means delete
       const newLayer = createTextLayer(state.format)
       const styled = applyStylePreset(preset, newLayer)
       if (!preset.apply.color) styled.color = textColor
       styled.text = 'Yazınız buraya'
+      appliedToId = styled.id
       updateLayers([...state.layers, styled], styled.id)
     }
-    setLastSuggestion({ presetLabel: preset.label, reasoning, source })
+    setLastSuggestion({
+      presetLabel: preset.label,
+      presetId,
+      reasoning,
+      source,
+      appliedToId,
+      previousLayer,
+    })
+  }
+
+  const handleUndoSuggestion = () => {
+    if (!lastSuggestion) return
+    const { appliedToId, previousLayer } = lastSuggestion
+    if (previousLayer) {
+      // restore the previous layer state
+      updateLayers(state.layers.map((l) => (l.id === appliedToId ? previousLayer : l)))
+    } else {
+      // it was a newly-created layer — remove it
+      const next = state.layers.filter((l) => l.id !== appliedToId)
+      updateLayers(next, state.selectedLayerId === appliedToId ? null : state.selectedLayerId)
+    }
+    setLastSuggestion(null)
+  }
+
+  const handleRetrySuggestion = () => {
+    if (!lastSuggestion) return
+    // First undo, then re-trigger the same kind of suggestion
+    handleUndoSuggestion()
+    if (lastSuggestion.source === 'ai') {
+      void handleAIRefine()
+    } else {
+      void handleSuggest()
+    }
   }
 
   const handleSuggest = async () => {
@@ -187,27 +233,70 @@ export function EditorStep({ state, onUpdate, onBack, onNext }: Props) {
           {lastSuggestion && (
             <div
               className={[
-                'rounded-lg border px-3 py-2 text-xs',
+                'rounded-lg border px-3 py-2.5 text-xs',
                 lastSuggestion.source === 'ai'
                   ? 'border-emerald-500/30 bg-emerald-500/10'
                   : 'border-fuchsia-500/30 bg-fuchsia-500/10',
               ].join(' ')}
             >
-              <div
-                className={[
-                  'font-semibold',
-                  lastSuggestion.source === 'ai' ? 'text-emerald-200' : 'text-fuchsia-200',
-                ].join(' ')}
-              >
-                {lastSuggestion.source === 'ai' ? '🤖 AI önerisi' : '🪄 Heuristic öneri'}: {lastSuggestion.presetLabel}
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1">
+                  <div
+                    className={[
+                      'font-semibold',
+                      lastSuggestion.source === 'ai' ? 'text-emerald-200' : 'text-fuchsia-200',
+                    ].join(' ')}
+                  >
+                    {lastSuggestion.source === 'ai' ? '🤖 AI önerisi' : '🪄 Heuristic öneri'}: {lastSuggestion.presetLabel}
+                  </div>
+                  <div
+                    className={[
+                      'mt-0.5',
+                      lastSuggestion.source === 'ai' ? 'text-emerald-100/80' : 'text-fuchsia-100/80',
+                    ].join(' ')}
+                  >
+                    {lastSuggestion.reasoning}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setLastSuggestion(null)}
+                  className={[
+                    'shrink-0 rounded p-1 text-[11px]',
+                    lastSuggestion.source === 'ai'
+                      ? 'text-emerald-300/60 hover:bg-emerald-500/15 hover:text-emerald-100'
+                      : 'text-fuchsia-300/60 hover:bg-fuchsia-500/15 hover:text-fuchsia-100',
+                  ].join(' ')}
+                  title="Kapat"
+                >
+                  ✕
+                </button>
               </div>
-              <div
-                className={[
-                  'mt-0.5',
-                  lastSuggestion.source === 'ai' ? 'text-emerald-100/80' : 'text-fuchsia-100/80',
-                ].join(' ')}
-              >
-                {lastSuggestion.reasoning}
+
+              <div className="mt-2 flex gap-1.5 border-t border-white/5 pt-2">
+                <button
+                  type="button"
+                  onClick={handleUndoSuggestion}
+                  disabled={suggesting || aiRefining}
+                  className="flex-1 rounded-md border border-white/10 bg-white/[0.04] px-2 py-1.5 text-[11px] font-medium text-white/80 transition hover:bg-white/[0.08] disabled:opacity-50"
+                  title={lastSuggestion.previousLayer ? 'Öneriyi geri al — eski stile dön' : 'Eklenen yazıyı sil'}
+                >
+                  ↶ Geri al
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRetrySuggestion}
+                  disabled={suggesting || aiRefining}
+                  className={[
+                    'flex-1 rounded-md border px-2 py-1.5 text-[11px] font-medium transition disabled:opacity-50',
+                    lastSuggestion.source === 'ai'
+                      ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20'
+                      : 'border-fuchsia-400/40 bg-fuchsia-500/10 text-fuchsia-200 hover:bg-fuchsia-500/20',
+                  ].join(' ')}
+                  title="Aynı tipte (AI/heuristic) yeni bir öneri al"
+                >
+                  🔄 Başka öneri
+                </button>
               </div>
             </div>
           )}
