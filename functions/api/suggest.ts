@@ -139,6 +139,29 @@ Reply with STRICT JSON only — no prose, no code fences, no explanation. Just t
 
   if (!upstream.ok) {
     const text = await upstream.text().catch(() => '')
+    // Rate limit / quota — pass through with extra header info so the client can show a nice message
+    if (upstream.status === 429) {
+      const retryAfter = upstream.headers.get('retry-after') ?? ''
+      const limit = upstream.headers.get('x-ratelimit-limit-requests') ?? ''
+      const remaining = upstream.headers.get('x-ratelimit-remaining-requests') ?? ''
+      const reset = upstream.headers.get('x-ratelimit-reset-requests') ?? ''
+      return json(
+        {
+          error: 'rate-limit',
+          provider: hostFromUrl(upstreamUrl),
+          retryAfter,
+          limit,
+          remaining,
+          reset,
+          detail: text.slice(0, 400),
+        },
+        429,
+      )
+    }
+    // Auth issues
+    if (upstream.status === 401 || upstream.status === 403) {
+      return json({ error: 'auth-failed', detail: text.slice(0, 400) }, upstream.status)
+    }
     return json({ error: `LLM upstream ${upstream.status}`, detail: text.slice(0, 400) }, 502)
   }
 
@@ -180,4 +203,12 @@ function json(payload: unknown, status = 200): Response {
     status,
     headers: { 'Content-Type': 'application/json', ...corsHeaders() },
   })
+}
+
+function hostFromUrl(url: string): string {
+  try {
+    return new URL(url).host
+  } catch {
+    return ''
+  }
 }

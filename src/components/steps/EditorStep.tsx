@@ -141,16 +141,36 @@ export function EditorStep({ state, onUpdate, onBack, onNext }: Props) {
       await applySuggestion(sug.presetId, sug.textColor, sug.reasoning, 'ai')
     } catch (e) {
       if (e instanceof CloudAIError) {
-        if (e.code === 'dev-no-function') {
-          setAiError(
-            "ℹ️ Online AI sadece Cloudflare'e deploy edildikten sonra çalışır. Yerel dev modunda heuristic 'Akıllı Öner' butonunu kullanabilirsin.",
-          )
-        } else if (e.code === 'not-configured') {
-          setAiError(
-            '⚠ Cloudflare Pages env vars\'ında LLM_API_KEY tanımlı değil. doc/DEPLOY.md\'ye bak.',
-          )
-        } else {
-          setAiError(`AI hatası: ${e.message}`)
+        switch (e.code) {
+          case 'dev-no-function':
+            setAiError(
+              "ℹ️ Online AI sadece Cloudflare'e deploy edildikten sonra çalışır. Yerel dev modunda heuristic 'Akıllı Öner' butonunu kullanabilirsin.",
+            )
+            break
+          case 'not-configured':
+            setAiError(
+              "⚠ Cloudflare Pages env vars'ında LLM_API_KEY tanımlı değil. doc/DEPLOY.md adım 3'e bak.",
+            )
+            break
+          case 'rate-limit': {
+            const info = e.info
+            const resetHint = info?.reset
+              ? ` (${info.reset} sonra resetlenir)`
+              : info?.retryAfter
+              ? ` (${info.retryAfter} sn sonra)`
+              : ''
+            setAiError(
+              `🚦 AI istek limiti doldu${resetHint}. Provider quota tükendi. Çözümler: 1) Yarın tekrar dene, 2) Cloudflare Pages → Settings → Variables → LLM_API_KEY'i başka bir provider'ın key'iyle değiştir (OpenRouter veya Hugging Face — doc/DEPLOY.md). Heuristic Akıllı Öner her zaman çalışır.`,
+            )
+            break
+          }
+          case 'auth-failed':
+            setAiError(
+              '🔐 API key geçersiz veya iptal edilmiş. Cloudflare Pages → Settings → Variables → LLM_API_KEY değerini güncelle ve Retry deployment yap.',
+            )
+            break
+          default:
+            setAiError(`AI hatası: ${e.message}`)
         }
       } else {
         setAiError(`AI hatası: ${e instanceof Error ? e.message : 'bilinmeyen'}`)

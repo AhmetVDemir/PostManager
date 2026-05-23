@@ -14,15 +14,27 @@ import { analyzeBackground } from './imageAnalysis'
 export type AIErrorCode =
   | 'dev-no-function' // 404 — Vite dev mode'da function yok
   | 'not-configured' // 503 — server tarafında key yok
-  | 'upstream-error' // 502 — LLM hatası
+  | 'rate-limit' // 429 — provider quota / rate limit
+  | 'auth-failed' // 401/403 — key geçersiz veya iptal edilmiş
+  | 'upstream-error' // 502 — diğer LLM hataları
   | 'network-error' // fetch hatası
   | 'bad-response' // parse hatası
 
+export interface RateLimitInfo {
+  provider: string
+  retryAfter?: string
+  limit?: string
+  remaining?: string
+  reset?: string
+}
+
 export class CloudAIError extends Error {
   code: AIErrorCode
-  constructor(code: AIErrorCode, message: string) {
+  info?: RateLimitInfo
+  constructor(code: AIErrorCode, message: string, info?: RateLimitInfo) {
     super(message)
     this.code = code
+    this.info = info
   }
 }
 
@@ -68,7 +80,25 @@ export async function suggestStyleWithAI(
   if (res.status === 503) {
     throw new CloudAIError(
       'not-configured',
-      'Sunucuda LLM API key tanımlı değil. Cloudflare Pages env vars\'a LLM_API_KEY ekleyin.',
+      "Sunucuda LLM API key tanımlı değil. Cloudflare Pages env vars'a LLM_API_KEY ekleyin.",
+    )
+  }
+  if (res.status === 429) {
+    let info: RateLimitInfo | undefined
+    try {
+      const data = (await res.json()) as RateLimitInfo
+      info = data
+    } catch {/* ignore */}
+    throw new CloudAIError(
+      'rate-limit',
+      "Günlük AI istek limitin doldu. Yarın resetlenecek — veya doc/DEPLOY.md'deki başka bir provider'a geç (OpenRouter / Hugging Face).",
+      info,
+    )
+  }
+  if (res.status === 401 || res.status === 403) {
+    throw new CloudAIError(
+      'auth-failed',
+      'API key geçersiz veya iptal edilmiş. Cloudflare Pages → Settings → Variables → LLM_API_KEY değerini güncelle ve Retry deployment yap.',
     )
   }
   if (!res.ok) {
