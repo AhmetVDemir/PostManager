@@ -4,7 +4,7 @@ import type Konva from 'konva'
 import type { Background, CanvasFormat, FilterState, Layer, TextLayer, EmojiLayer } from '../types'
 import { CANVAS_DIMENSIONS } from '../types'
 import { getFilterById } from '../data/filters'
-import { parseTextSegments, measureSegmentWidths } from '../utils/textSegments'
+import { parseTextSegments, measureSegmentWidths, wrapLineToMaxWidth } from '../utils/textSegments'
 
 export interface ExportOptions {
   mimeType?: 'image/png' | 'image/jpeg'
@@ -208,7 +208,7 @@ export const PostCanvas = forwardRef<PostCanvasHandle, Props>(function PostCanva
         {/* Layers */}
         <KLayer>
           {layers.map((layer) => {
-            if (layer.type === 'text') return <TextNode key={layer.id} layer={layer} selected={layer.id === selectedLayerId} draggable={draggableLayers} onMove={onLayerMove} onSelect={onLayerSelect} />
+            if (layer.type === 'text') return <TextNode key={layer.id} layer={layer} canvasWidth={dim.width} canvasHeight={dim.height} selected={layer.id === selectedLayerId} draggable={draggableLayers} onMove={onLayerMove} onSelect={onLayerSelect} />
             if (layer.type === 'emoji') return <EmojiNode key={layer.id} layer={layer} selected={layer.id === selectedLayerId} draggable={draggableLayers} onMove={onLayerMove} onSelect={onLayerSelect} />
             return null
           })}
@@ -228,9 +228,28 @@ interface NodeCallbacks {
   onSelect?: (id: string | null) => void
 }
 
-function TextNode({ layer: t, selected, draggable, onMove, onSelect }: { layer: TextLayer } & NodeCallbacks) {
-  // Parse [[highlighted]] syntax and split by newlines into a 2D segment grid
-  const lines = useMemo(() => parseTextSegments(t.text || ' '), [t.text])
+function TextNode({
+  layer: t,
+  selected,
+  draggable,
+  onMove,
+  onSelect,
+  canvasWidth,
+  canvasHeight,
+}: { layer: TextLayer; canvasWidth: number; canvasHeight: number } & NodeCallbacks) {
+  // Parse [[highlighted]] syntax + manual \n
+  const rawLines = useMemo(() => parseTextSegments(t.text || ' '), [t.text])
+
+  // If maxWidth is set, word-wrap each line into multiple lines that fit
+  const lines = useMemo(() => {
+    if (!t.maxWidth || t.maxWidth <= 0) return rawLines
+    const out: typeof rawLines = []
+    for (const line of rawLines) {
+      const wrapped = wrapLineToMaxWidth(line, t.maxWidth, t.fontFamily, t.fontSize)
+      out.push(...wrapped)
+    }
+    return out
+  }, [rawLines, t.maxWidth, t.fontFamily, t.fontSize])
 
   // Measure each segment's width via canvas measureText (sync, fast)
   const widthsPerLine = useMemo(
@@ -250,6 +269,15 @@ function TextNode({ layer: t, selected, draggable, onMove, onSelect }: { layer: 
 
   const padX = t.bg ? t.bgPaddingX : 0
   const padY = t.bg ? t.bgPaddingY : 0
+
+  // Auto-fit: shrink the whole group if the text bounding box (incl.
+  // padding) wouldn't fit within ~92% of the canvas. Keeps user-set
+  // fontSize visually consistent without forcing wrap or manual resize.
+  const safeW = canvasWidth * 0.92
+  const safeH = canvasHeight * 0.92
+  const contentW = maxLineWidth + padX * 2
+  const contentH = totalHeight + padY * 2
+  const fitScale = Math.min(1, safeW / Math.max(contentW, 1), safeH / Math.max(contentH, 1))
 
   // Build a flat list of segment nodes with their absolute positions inside the group
   const segmentNodes = useMemo(() => {
@@ -289,6 +317,8 @@ function TextNode({ layer: t, selected, draggable, onMove, onSelect }: { layer: 
       x={t.x}
       y={t.y}
       rotation={t.rotation}
+      scaleX={fitScale}
+      scaleY={fitScale}
       draggable={draggable}
       onClick={() => onSelect?.(t.id)}
       onTap={() => onSelect?.(t.id)}

@@ -236,7 +236,9 @@ export function createTextLayer(format: CanvasFormat = 'square', overrides: Part
     highlightBgOpacity: 0.92,
     highlightTextColor: '',
 
-    maxWidth: null,
+    // Default wrap: %85 of canvas width — long pasted text auto-wraps
+    // and stays inside the safe area without manual maxWidth toggle.
+    maxWidth: Math.round(d.width * 0.85),
     lineHeight: 1.15,
 
     ...overrides,

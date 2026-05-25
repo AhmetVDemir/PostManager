@@ -62,3 +62,66 @@ export function measureSegmentWidths(
   ctx.font = `${fontSize}px "${fontFamily}"`
   return segments.map((s) => ctx.measureText(s.text || ' ').width)
 }
+
+/**
+ * Bir satırı word-wrap algoritmasıyla maxWidth'e sığacak şekilde
+ * birden çok satıra böler. Segment'lerin highlighted durumu korunur,
+ * bir segment satır sonunda kırılabilir.
+ *
+ * Bu fonksiyon parseTextSegments'in çıktısını alıp her satıra
+ * uygulayabilir. Sonuç: yeni TextSegment[][] (daha çok satır).
+ */
+export function wrapLineToMaxWidth(
+  segments: TextSegment[],
+  maxWidth: number,
+  fontFamily: string,
+  fontSize: number,
+): TextSegment[][] {
+  if (maxWidth <= 0 || typeof document === 'undefined') return [segments]
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return [segments]
+  ctx.font = `${fontSize}px "${fontFamily}"`
+
+  const spaceW = ctx.measureText(' ').width
+  const lines: TextSegment[][] = []
+  let curLine: TextSegment[] = []
+  let curWidth = 0
+
+  const pushWord = (word: string, highlighted: boolean) => {
+    const w = ctx.measureText(word).width
+    // Need separator?
+    const needsSpace = curLine.length > 0
+    const sepW = needsSpace ? spaceW : 0
+    if (curWidth + sepW + w > maxWidth && curLine.length > 0) {
+      lines.push(curLine)
+      curLine = [{ text: word, highlighted }]
+      curWidth = w
+    } else {
+      // append to current line
+      const last = curLine[curLine.length - 1]
+      if (last && last.highlighted === highlighted) {
+        last.text = last.text + (needsSpace ? ' ' : '') + word
+      } else {
+        curLine.push({ text: (needsSpace ? ' ' : '') + word, highlighted })
+      }
+      curWidth += sepW + w
+    }
+  }
+
+  for (const seg of segments) {
+    if (!seg.text) continue
+    // Preserve leading/trailing whitespace inside segments by splitting on
+    // word boundaries but keeping order
+    const words = seg.text.split(/(\s+)/).filter((w) => w.length > 0)
+    for (const w of words) {
+      if (/^\s+$/.test(w)) {
+        // pure whitespace: only meaningful as separator, skip (added by pushWord)
+        continue
+      }
+      pushWord(w, seg.highlighted)
+    }
+  }
+  if (curLine.length > 0) lines.push(curLine)
+  return lines
+}
