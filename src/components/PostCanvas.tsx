@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import { Stage, Layer as KLayer, Image as KImage, Rect, Text as KText } from 'react-konva'
+import { Stage, Layer as KLayer, Image as KImage, Rect, Text as KText, Group } from 'react-konva'
 import type Konva from 'konva'
 import type { Background, CanvasFormat, FilterState, Layer, TextLayer, EmojiLayer } from '../types'
 import { CANVAS_DIMENSIONS } from '../types'
@@ -228,20 +228,67 @@ interface NodeCallbacks {
 }
 
 function TextNode({ layer: t, selected, draggable, onMove, onSelect }: { layer: TextLayer } & NodeCallbacks) {
+  const textRef = useRef<Konva.Text>(null)
+  const [bbox, setBbox] = useState<{ w: number; h: number }>({ w: 0, h: 0 })
+
+  // Re-measure when text or sizing-related props change
+  useEffect(() => {
+    const node = textRef.current
+    if (!node) return
+    const id = requestAnimationFrame(() => {
+      setBbox({ w: node.width(), h: node.height() })
+    })
+    return () => cancelAnimationFrame(id)
+  }, [t.text, t.fontFamily, t.fontSize, t.align, t.maxWidth, t.lineHeight, t.stroke, t.strokeWidth])
+
+  const padX = t.bg ? t.bgPaddingX : 0
+  const padY = t.bg ? t.bgPaddingY : 0
+  const textWidth = t.maxWidth ?? undefined
+  const halfW = bbox.w / 2
+  const halfH = bbox.h / 2
+
+  // Shared text props for glow + main + ghost-measure node
+  const sharedTextProps = {
+    text: t.text,
+    fontFamily: t.fontFamily,
+    fontSize: t.fontSize,
+    align: t.align,
+    lineHeight: t.lineHeight,
+    width: textWidth,
+  } as const
+
   return (
-    <>
-      {/* Glow (under) — solid colored fill so the text body fills with glow color and its
-          surrounding blurred shadow forms the halo; the main text overlays it. */}
-      {t.glow && (
+    <Group
+      x={t.x}
+      y={t.y}
+      rotation={t.rotation}
+      draggable={draggable}
+      onClick={() => onSelect?.(t.id)}
+      onTap={() => onSelect?.(t.id)}
+      onDragStart={() => onSelect?.(t.id)}
+      onDragMove={(e) => onMove?.(t.id, e.target.x(), e.target.y())}
+    >
+      {/* Background plate */}
+      {t.bg && bbox.w > 0 && (
+        <Rect
+          x={-halfW - padX}
+          y={-halfH - padY}
+          width={bbox.w + padX * 2}
+          height={bbox.h + padY * 2}
+          fill={t.bgColor}
+          opacity={t.bgOpacity}
+          cornerRadius={t.bgRadius}
+          listening={false}
+        />
+      )}
+
+      {/* Glow layer (transparent text body emits halo via shadow) */}
+      {t.glow && bbox.w > 0 && (
         <KText
-          text={t.text}
-          x={t.x}
-          y={t.y}
-          fontFamily={t.fontFamily}
-          fontSize={t.fontSize}
+          {...sharedTextProps}
+          x={-halfW}
+          y={-halfH}
           fill={t.glowColor}
-          align={t.align}
-          rotation={t.rotation}
           listening={false}
           shadowEnabled
           shadowColor={t.glowColor}
@@ -249,25 +296,16 @@ function TextNode({ layer: t, selected, draggable, onMove, onSelect }: { layer: 
           shadowOffsetX={0}
           shadowOffsetY={0}
           shadowOpacity={t.glowOpacity}
-          ref={(node) => {
-            if (node) {
-              node.offsetX(node.width() / 2)
-              node.offsetY(node.height() / 2)
-            }
-          }}
         />
       )}
+
       {/* Main text */}
       <KText
-        text={t.text}
-        x={t.x}
-        y={t.y}
-        fontFamily={t.fontFamily}
-        fontSize={t.fontSize}
+        ref={textRef}
+        {...sharedTextProps}
+        x={-halfW}
+        y={-halfH}
         fill={t.color}
-        align={t.align}
-        rotation={t.rotation}
-        draggable={draggable}
         stroke={t.stroke ? t.strokeColor : undefined}
         strokeWidth={t.stroke ? t.strokeWidth : 0}
         fillAfterStrokeEnabled
@@ -278,38 +316,22 @@ function TextNode({ layer: t, selected, draggable, onMove, onSelect }: { layer: 
         shadowOffsetX={t.shadowOffsetX}
         shadowOffsetY={t.shadowOffsetY}
         shadowOpacity={t.shadow ? t.shadowOpacity : 0}
-        onClick={() => onSelect?.(t.id)}
-        onTap={() => onSelect?.(t.id)}
-        onDragStart={() => onSelect?.(t.id)}
-        onDragMove={(e) => onMove?.(t.id, e.target.x(), e.target.y())}
-        ref={(node) => {
-          if (node) {
-            node.offsetX(node.width() / 2)
-            node.offsetY(node.height() / 2)
-            if (selected) {
-              // selection indicator via dashed shadow ring; simplest: a small bbox via stroke
-            }
-          }
-        }}
       />
-      {/* Selection outline */}
-      {selected && (
-        <SelectionFrame
-          x={t.x}
-          y={t.y}
-          rotation={t.rotation}
-          getBBox={() => {
-            // approximate via measureText through a hidden canvas
-            const c = document.createElement('canvas').getContext('2d')!
-            c.font = `${t.fontSize}px "${t.fontFamily}"`
-            const m = c.measureText(t.text || ' ')
-            const w = m.width + (t.stroke ? t.strokeWidth * 2 : 0) + 12
-            const h = t.fontSize * 1.2 + (t.stroke ? t.strokeWidth * 2 : 0)
-            return { w, h }
-          }}
+
+      {/* Selection outline (inside Group → rotates/follows together) */}
+      {selected && bbox.w > 0 && (
+        <Rect
+          x={-halfW - padX - 4}
+          y={-halfH - padY - 4}
+          width={bbox.w + padX * 2 + 8}
+          height={bbox.h + padY * 2 + 8}
+          stroke="#6366f1"
+          strokeWidth={3}
+          dash={[12, 8]}
+          listening={false}
         />
       )}
-    </>
+    </Group>
   )
 }
 

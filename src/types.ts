@@ -55,6 +55,23 @@ export type FilterPreset =
   | 'sepia'
   | 'noir'
   | 'clarity'
+  | 'cinematic'
+  | 'hdr'
+  | 'polaroid'
+  | 'lomo'
+  | 'cyberpunk'
+  | 'lofi'
+  | 'sunset'
+  | 'mocha'
+  | 'coldsteel'
+  | 'duotone-pink'
+  | 'duotone-blue'
+  | 'posterize'
+  | 'dream'
+  | 'matte'
+  | 'crisp'
+  | 'film-grain'
+  | 'anime'
 
 export interface FilterState {
   enabled: boolean
@@ -66,7 +83,16 @@ export const DEFAULT_FILTER: FilterState = { enabled: false, preset: 'none' }
 // ============================================================================
 // Font mood (for font suggestion)
 // ============================================================================
-export type FontMood = 'modern' | 'elegant' | 'bold' | 'vintage' | 'fun' | 'handwritten'
+export type FontMood =
+  | 'modern'
+  | 'elegant'
+  | 'bold'
+  | 'vintage'
+  | 'fun'
+  | 'handwritten'
+  | 'tech'
+  | 'calligraphy'
+  | 'decorative'
 
 // ============================================================================
 // Layers
@@ -107,6 +133,18 @@ export interface TextLayer extends BaseLayer {
   glowColor: string
   glowBlur: number
   glowOpacity: number
+
+  // Background plate (arkasına renkli kutu)
+  bg: boolean
+  bgColor: string
+  bgOpacity: number // 0-1
+  bgPaddingX: number
+  bgPaddingY: number
+  bgRadius: number
+
+  // Paragraf desteği (v0.3-C)
+  maxWidth: number | null // null = otomatik (içeriğe göre); pozitif sayı = piksel cinsinden wrap genişliği
+  lineHeight: number // 1.0 - 2.5
 }
 
 export interface EmojiLayer extends BaseLayer {
@@ -180,6 +218,16 @@ export function createTextLayer(format: CanvasFormat = 'square', overrides: Part
     glowColor: '#ffd166',
     glowBlur: 35,
     glowOpacity: 0.9,
+
+    bg: false,
+    bgColor: '#7c1010',
+    bgOpacity: 0.85,
+    bgPaddingX: 24,
+    bgPaddingY: 10,
+    bgRadius: 4,
+
+    maxWidth: null,
+    lineHeight: 1.15,
 
     ...overrides,
   }

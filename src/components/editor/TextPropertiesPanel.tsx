@@ -250,6 +250,75 @@ export function TextPropertiesPanel({ layer, format, onChange, onDelete }: Props
 
       <PositionGrid format={format} onPick={(x, y) => update({ x, y })} />
 
+      {/* Paragraph controls — only when text has more than one line / could wrap */}
+      <CollapsibleSection
+        label="Paragraf (çoklu satır)"
+        icon="¶"
+        enabled={layer.maxWidth !== null}
+        onToggle={(v) => update({ maxWidth: v ? 800 : null })}
+      >
+        {layer.maxWidth !== null && (
+          <SliderRow
+            label="Max genişlik"
+            min={200}
+            max={1080}
+            value={layer.maxWidth}
+            unit="px"
+            onChange={(v) => update({ maxWidth: v })}
+          />
+        )}
+        <div>
+          <div className="flex items-center justify-between text-xs text-white/50">
+            <span>Satır aralığı</span>
+            <span>{layer.lineHeight.toFixed(2)}×</span>
+          </div>
+          <input
+            type="range"
+            min={0.8}
+            max={2.5}
+            step={0.05}
+            value={layer.lineHeight}
+            onChange={(e) => update({ lineHeight: Number(e.target.value) })}
+            className="w-full accent-indigo-500"
+          />
+        </div>
+      </CollapsibleSection>
+
+      {/* Background plate */}
+      <CollapsibleSection
+        label="Arka plan kutusu"
+        icon="🔲"
+        enabled={layer.bg}
+        onToggle={(v) => update({ bg: v })}
+      >
+        <ColorRow
+          label="Renk"
+          value={layer.bgColor}
+          onChange={(c) => update({ bgColor: c })}
+          swatches={['#7c1010', '#1f2937', '#fef3c7', '#000000', '#ffffff', '#f59e0b']}
+        />
+        <SliderRow
+          label="Opaklık"
+          min={0}
+          max={100}
+          value={Math.round(layer.bgOpacity * 100)}
+          unit="%"
+          onChange={(v) => update({ bgOpacity: v / 100 })}
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <SliderRow label="Yatay boşluk" min={0} max={80} value={layer.bgPaddingX} unit="px" onChange={(v) => update({ bgPaddingX: v })} />
+          <SliderRow label="Dikey boşluk" min={0} max={60} value={layer.bgPaddingY} unit="px" onChange={(v) => update({ bgPaddingY: v })} />
+        </div>
+        <SliderRow
+          label="Köşe yuvarlama"
+          min={0}
+          max={40}
+          value={layer.bgRadius}
+          unit="px"
+          onChange={(v) => update({ bgRadius: v })}
+        />
+      </CollapsibleSection>
+
       {/* Stroke */}
       <CollapsibleSection
         label="Kontur"
