@@ -4,6 +4,18 @@
 
 ---
 
+## ✅ Tamamlananlar — v0.3 (24 Mayıs 2026)
+
+- [x] **Sade Mod** (akış sadeleştirme + 🔧 Gelişmiş ayarları toggle)
+- [x] **Yazı arka plan kutusu** (color + opacity + padding + radius)
+- [x] **Paragraf desteği** (maxWidth + lineHeight)
+- [x] **63 font** (6 mevcut + 3 yeni mood: Tech, Calligraphy, Decorative)
+- [x] **26 filter preset** (Cinematic, HDR, Polaroid, Lomo, Cyberpunk, Lo-Fi, Sunset, Mocha, Cold Steel, Duotone Pink/Blue, Posterize, Dream, Matte, Crisp, Film Grain, Anime, ...)
+- [x] **AI yazı içeriği önerisi** (✨ AI Yazı Öner — 3 Türkçe caption)
+- [x] **AI mega-suggest** (🎁 Tam Paket — yazı + stil + renk birden)
+- [x] 3 yeni stil preset: Sarı Highlight, Geylani Stili, Beyaz Blok
+- [ ] **Segmentli highlight** — v0.4'e ertelendi (workaround: çoklu text layer kullan)
+
 ## ✅ Tamamlananlar — v0.2 (23 Mayıs 2026)
 
 - [x] Wizard mimarisi (Arka plan → Boyut → Editör → Kaydet)
@@ -27,7 +39,9 @@
 
 ---
 
-## 🚧 v0.3 — Akış Sadeleştirme & UX (sonraki sprint)
+## 🚧 v0.3 — Akış Sadeleştirme & UX (TAMAMLANDI — yukarıda ✅)
+
+> Aşağıdaki detaylar v0.3 sprint planının orijinal halidir. Çoğu yapıldı, segmentli highlight v0.4'e taşındı.
 
 > Kullanıcı isteği: "Tek fotoğrafı ekle, efekt ver, yazıyı yaz, AI önerip uygulasın. Sana yayınlamak/indirmek kalsın."
 

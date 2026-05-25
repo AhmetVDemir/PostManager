@@ -290,4 +290,5 @@ Deploy talimatları için → [DEPLOY.md](DEPLOY.md)
 | Sürüm | Tarih | Öne çıkan değişiklikler |
 |---|---|---|
 | 0.1 | Mayıs 2026 | İlk MVP — 5 step wizard, tek yazı katmanı, görsel-only arka plan |
-| 0.2 | Mayıs 2026 | **Bu sürüm** — Freeform editor, Layer abstraction, gradient/düz renk arka plan, görsel kırpma, 9 stil preset, emoji desteği, AI öneri (heuristic + Pollinations), PWA, mobil responsive, JPG export, PNG/JPG seçici |
+| 0.2 | Mayıs 2026 | Freeform editor, Layer abstraction, gradient/düz renk arka plan, görsel kırpma, 9 stil preset, emoji, AI öneri (heuristic + Pollinations→Groq), PWA, mobil responsive |
+| 0.3 | Mayıs 2026 | **Bu sürüm** — Sade Mod (akış sadeleştirme + gelişmiş toggle), yazı arka plan kutusu, paragraf (maxWidth + lineHeight), 63 font (9 mood), 26 filter, AI yazı içeriği önerisi (✨), AI mega-suggest (🎁), 3 yeni preset, AI hata banner |
