@@ -142,6 +142,12 @@ export interface TextLayer extends BaseLayer {
   bgPaddingY: number
   bgRadius: number
 
+  // Segmentli highlight: text içinde [[önemli kısım]] syntax'i ile
+  // sarılan kısımlar farklı BG ile vurgulanır (Geylani örneği).
+  highlightBg: string
+  highlightBgOpacity: number // 0-1
+  highlightTextColor: string // boş = layer.color kullan
+
   // Paragraf desteği (v0.3-C)
   maxWidth: number | null // null = otomatik (içeriğe göre); pozitif sayı = piksel cinsinden wrap genişliği
   lineHeight: number // 1.0 - 2.5
@@ -225,6 +231,10 @@ export function createTextLayer(format: CanvasFormat = 'square', overrides: Part
     bgPaddingX: 24,
     bgPaddingY: 10,
     bgRadius: 4,
+
+    highlightBg: '#7c1010',
+    highlightBgOpacity: 0.92,
+    highlightTextColor: '',
 
     maxWidth: null,
     lineHeight: 1.15,

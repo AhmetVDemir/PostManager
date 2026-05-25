@@ -331,6 +331,54 @@ export function TextPropertiesPanel({ layer, format, advanced = false, onChange,
         />
       </CollapsibleSection>
 
+      {/* Segmented highlight — [[...]] syntax */}
+      <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+        <div className="mb-1 flex items-center gap-2 text-sm font-medium text-white">
+          <span>✨</span> Vurgulu kelimeler
+        </div>
+        <div className="mb-2.5 rounded-md bg-black/30 px-2 py-1.5 font-mono text-[11px] leading-relaxed text-amber-200/80">
+          Yazıda <span className="text-amber-100">[[önemli]]</span> ile sarılan kısımlar farklı bir arka planla vurgulanır. <br/>
+          Örnek: <span className="text-amber-100">Büyük bir [[gaflet]] içindesin</span>
+        </div>
+        <ColorRow
+          label="Vurgu rengi"
+          value={layer.highlightBg}
+          onChange={(c) => update({ highlightBg: c })}
+          swatches={['#7c1010', '#ca8a04', '#1d4ed8', '#15803d', '#000000', '#ffffff']}
+        />
+        <SliderRow
+          label="Opaklık"
+          min={0}
+          max={100}
+          value={Math.round(layer.highlightBgOpacity * 100)}
+          unit="%"
+          onChange={(v) => update({ highlightBgOpacity: v / 100 })}
+        />
+        <div className="mt-2">
+          <label className="mb-1 block text-xs text-white/50">
+            Yazı rengi (boş bırak = ana renk)
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              value={layer.highlightTextColor || '#ffffff'}
+              onChange={(e) => update({ highlightTextColor: e.target.value })}
+              className="h-7 w-12 cursor-pointer rounded border border-white/10 bg-transparent"
+            />
+            <button
+              type="button"
+              onClick={() => update({ highlightTextColor: '' })}
+              className="rounded border border-white/10 px-2 py-1 text-[10px] text-white/60 hover:bg-white/10"
+            >
+              Temizle
+            </button>
+            {layer.highlightTextColor && (
+              <span className="font-mono text-[10px] text-white/40">{layer.highlightTextColor}</span>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Stroke */}
       <CollapsibleSection
         label="Kontur"

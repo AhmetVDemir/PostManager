@@ -14,7 +14,7 @@
 - [x] **AI yazı içeriği önerisi** (✨ AI Yazı Öner — 3 Türkçe caption)
 - [x] **AI mega-suggest** (🎁 Tam Paket — yazı + stil + renk birden)
 - [x] 3 yeni stil preset: Sarı Highlight, Geylani Stili, Beyaz Blok
-- [ ] **Segmentli highlight** — v0.4'e ertelendi (workaround: çoklu text layer kullan)
+- [x] **Segmentli highlight** — `[[önemli]]` syntax'i ile yazının bir kısmına ayrı BG. Geylani örneği birebir çalışıyor.
 
 ## ✅ Tamamlananlar — v0.2 (23 Mayıs 2026)
 

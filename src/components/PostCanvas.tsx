@@ -4,6 +4,7 @@ import type Konva from 'konva'
 import type { Background, CanvasFormat, FilterState, Layer, TextLayer, EmojiLayer } from '../types'
 import { CANVAS_DIMENSIONS } from '../types'
 import { getFilterById } from '../data/filters'
+import { parseTextSegments, measureSegmentWidths } from '../utils/textSegments'
 
 export interface ExportOptions {
   mimeType?: 'image/png' | 'image/jpeg'
@@ -228,34 +229,60 @@ interface NodeCallbacks {
 }
 
 function TextNode({ layer: t, selected, draggable, onMove, onSelect }: { layer: TextLayer } & NodeCallbacks) {
-  const textRef = useRef<Konva.Text>(null)
-  const [bbox, setBbox] = useState<{ w: number; h: number }>({ w: 0, h: 0 })
+  // Parse [[highlighted]] syntax and split by newlines into a 2D segment grid
+  const lines = useMemo(() => parseTextSegments(t.text || ' '), [t.text])
 
-  // Re-measure when text or sizing-related props change
-  useEffect(() => {
-    const node = textRef.current
-    if (!node) return
-    const id = requestAnimationFrame(() => {
-      setBbox({ w: node.width(), h: node.height() })
-    })
-    return () => cancelAnimationFrame(id)
-  }, [t.text, t.fontFamily, t.fontSize, t.align, t.maxWidth, t.lineHeight, t.stroke, t.strokeWidth])
+  // Measure each segment's width via canvas measureText (sync, fast)
+  const widthsPerLine = useMemo(
+    () => lines.map((segs) => measureSegmentWidths(segs, t.fontFamily, t.fontSize)),
+    [lines, t.fontFamily, t.fontSize],
+  )
+
+  const lineWidths = useMemo(
+    () => widthsPerLine.map((ws) => ws.reduce((a, b) => a + b, 0)),
+    [widthsPerLine],
+  )
+  const maxLineWidth = Math.max(1, ...lineWidths)
+  const lineHeightPx = t.fontSize * t.lineHeight
+  const totalHeight = lines.length * lineHeightPx
+  const halfW = maxLineWidth / 2
+  const halfH = totalHeight / 2
 
   const padX = t.bg ? t.bgPaddingX : 0
   const padY = t.bg ? t.bgPaddingY : 0
-  const textWidth = t.maxWidth ?? undefined
-  const halfW = bbox.w / 2
-  const halfH = bbox.h / 2
 
-  // Shared text props for glow + main + ghost-measure node
-  const sharedTextProps = {
-    text: t.text,
-    fontFamily: t.fontFamily,
-    fontSize: t.fontSize,
-    align: t.align,
-    lineHeight: t.lineHeight,
-    width: textWidth,
-  } as const
+  // Build a flat list of segment nodes with their absolute positions inside the group
+  const segmentNodes = useMemo(() => {
+    const out: Array<{
+      key: string
+      x: number
+      y: number
+      w: number
+      text: string
+      highlighted: boolean
+    }> = []
+    let y = -halfH
+    for (let li = 0; li < lines.length; li++) {
+      const segs = lines[li]
+      const widths = widthsPerLine[li]
+      const lineW = lineWidths[li]
+      let x: number
+      if (t.align === 'left') x = -halfW
+      else if (t.align === 'right') x = halfW - lineW
+      else x = -lineW / 2
+      for (let si = 0; si < segs.length; si++) {
+        const seg = segs[si]
+        const w = widths[si]
+        out.push({ key: `${li}-${si}`, x, y, w, text: seg.text, highlighted: seg.highlighted })
+        x += w
+      }
+      y += lineHeightPx
+    }
+    return out
+  }, [lines, widthsPerLine, lineWidths, halfW, halfH, lineHeightPx, t.align])
+
+  const highlightSegPadX = 8
+  const highlightSegPadY = 2
 
   return (
     <Group
@@ -268,13 +295,13 @@ function TextNode({ layer: t, selected, draggable, onMove, onSelect }: { layer: 
       onDragStart={() => onSelect?.(t.id)}
       onDragMove={(e) => onMove?.(t.id, e.target.x(), e.target.y())}
     >
-      {/* Background plate */}
-      {t.bg && bbox.w > 0 && (
+      {/* Main background plate (entire bbox) */}
+      {t.bg && (
         <Rect
           x={-halfW - padX}
           y={-halfH - padY}
-          width={bbox.w + padX * 2}
-          height={bbox.h + padY * 2}
+          width={maxLineWidth + padX * 2}
+          height={totalHeight + padY * 2}
           fill={t.bgColor}
           opacity={t.bgOpacity}
           cornerRadius={t.bgRadius}
@@ -282,49 +309,78 @@ function TextNode({ layer: t, selected, draggable, onMove, onSelect }: { layer: 
         />
       )}
 
-      {/* Glow layer (transparent text body emits halo via shadow) */}
-      {t.glow && bbox.w > 0 && (
+      {/* Per-segment highlight backgrounds */}
+      {segmentNodes
+        .filter((n) => n.highlighted && n.w > 0)
+        .map((n) => (
+          <Rect
+            key={`h-${n.key}`}
+            x={n.x - highlightSegPadX}
+            y={n.y + (lineHeightPx - t.fontSize) / 2 - highlightSegPadY}
+            width={n.w + highlightSegPadX * 2}
+            height={t.fontSize + highlightSegPadY * 2}
+            fill={t.highlightBg}
+            opacity={t.highlightBgOpacity}
+            cornerRadius={2}
+            listening={false}
+          />
+        ))}
+
+      {/* Glow text per segment (under main text, transparent fill for halo) */}
+      {t.glow &&
+        segmentNodes.map((n) => (
+          <KText
+            key={`g-${n.key}`}
+            text={n.text}
+            x={n.x}
+            y={n.y + (lineHeightPx - t.fontSize) / 2}
+            fontFamily={t.fontFamily}
+            fontSize={t.fontSize}
+            fill={t.glowColor}
+            listening={false}
+            shadowEnabled
+            shadowColor={t.glowColor}
+            shadowBlur={t.glowBlur}
+            shadowOffsetX={0}
+            shadowOffsetY={0}
+            shadowOpacity={t.glowOpacity}
+          />
+        ))}
+
+      {/* Main text per segment */}
+      {segmentNodes.map((n) => (
         <KText
-          {...sharedTextProps}
-          x={-halfW}
-          y={-halfH}
-          fill={t.glowColor}
-          listening={false}
-          shadowEnabled
-          shadowColor={t.glowColor}
-          shadowBlur={t.glowBlur}
-          shadowOffsetX={0}
-          shadowOffsetY={0}
-          shadowOpacity={t.glowOpacity}
+          key={`m-${n.key}`}
+          text={n.text}
+          x={n.x}
+          y={n.y + (lineHeightPx - t.fontSize) / 2}
+          fontFamily={t.fontFamily}
+          fontSize={t.fontSize}
+          fill={
+            n.highlighted && t.highlightTextColor
+              ? t.highlightTextColor
+              : t.color
+          }
+          stroke={t.stroke ? t.strokeColor : undefined}
+          strokeWidth={t.stroke ? t.strokeWidth : 0}
+          fillAfterStrokeEnabled
+          lineJoin="round"
+          shadowEnabled={t.shadow}
+          shadowColor={t.shadowColor}
+          shadowBlur={t.shadowBlur}
+          shadowOffsetX={t.shadowOffsetX}
+          shadowOffsetY={t.shadowOffsetY}
+          shadowOpacity={t.shadow ? t.shadowOpacity : 0}
         />
-      )}
+      ))}
 
-      {/* Main text */}
-      <KText
-        ref={textRef}
-        {...sharedTextProps}
-        x={-halfW}
-        y={-halfH}
-        fill={t.color}
-        stroke={t.stroke ? t.strokeColor : undefined}
-        strokeWidth={t.stroke ? t.strokeWidth : 0}
-        fillAfterStrokeEnabled
-        lineJoin="round"
-        shadowEnabled={t.shadow}
-        shadowColor={t.shadowColor}
-        shadowBlur={t.shadowBlur}
-        shadowOffsetX={t.shadowOffsetX}
-        shadowOffsetY={t.shadowOffsetY}
-        shadowOpacity={t.shadow ? t.shadowOpacity : 0}
-      />
-
-      {/* Selection outline (inside Group → rotates/follows together) */}
-      {selected && bbox.w > 0 && (
+      {/* Selection outline */}
+      {selected && (
         <Rect
           x={-halfW - padX - 4}
           y={-halfH - padY - 4}
-          width={bbox.w + padX * 2 + 8}
-          height={bbox.h + padY * 2 + 8}
+          width={maxLineWidth + padX * 2 + 8}
+          height={totalHeight + padY * 2 + 8}
           stroke="#6366f1"
           strokeWidth={3}
           dash={[12, 8]}
