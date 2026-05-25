@@ -7,11 +7,12 @@ import { PositionGrid } from './PositionGrid'
 interface Props {
   layer: TextLayer
   format: CanvasFormat
+  advanced?: boolean
   onChange: (next: TextLayer) => void
   onDelete: () => void
 }
 
-export function TextPropertiesPanel({ layer, format, onChange, onDelete }: Props) {
+export function TextPropertiesPanel({ layer, format, advanced = false, onChange, onDelete }: Props) {
   const [mood, setMood] = useState<FontMood>(() => {
     // Detect mood from current font
     for (const m of Object.keys(FONTS_BY_MOOD) as FontMood[]) {
@@ -88,7 +89,14 @@ export function TextPropertiesPanel({ layer, format, onChange, onDelete }: Props
         </div>
       </div>
 
-      {/* Font picker (collapsible) */}
+      {!advanced && (
+        <div className="rounded-md border border-indigo-400/20 bg-indigo-500/5 px-2.5 py-1.5 text-[11px] text-indigo-200/70">
+          💡 Sade görünüm — gelişmiş ayarlar (font, gölge, glow, kontur, BG, paragraf...) için soldaki <b>🔧 Gelişmiş ayarları aç</b> butonunu kullan.
+        </div>
+      )}
+
+      {/* Font picker (collapsible) — only in advanced */}
+      {advanced && (
       <div className="rounded-xl border border-white/10 bg-white/[0.02]">
         <button
           type="button"
@@ -154,6 +162,7 @@ export function TextPropertiesPanel({ layer, format, onChange, onDelete }: Props
           </div>
         )}
       </div>
+      )}
 
       {/* Size */}
       <div>
@@ -197,8 +206,8 @@ export function TextPropertiesPanel({ layer, format, onChange, onDelete }: Props
         </div>
       </div>
 
-      {/* Color + Align + Rotation */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Color (always) + Rotation (advanced only) */}
+      <div className={advanced ? 'grid grid-cols-2 gap-3' : ''}>
         <div>
           <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-white/40">
             Renk
@@ -210,21 +219,24 @@ export function TextPropertiesPanel({ layer, format, onChange, onDelete }: Props
             className="h-8 w-full cursor-pointer rounded-md border border-white/10 bg-transparent"
           />
         </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-white/40">
-            Açı
-          </label>
-          <input
-            type="range"
-            min={-180}
-            max={180}
-            value={layer.rotation}
-            onChange={(e) => update({ rotation: Number(e.target.value) })}
-            className="w-full accent-indigo-500"
-          />
-        </div>
+        {advanced && (
+          <div>
+            <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-white/40">
+              Açı
+            </label>
+            <input
+              type="range"
+              min={-180}
+              max={180}
+              value={layer.rotation}
+              onChange={(e) => update({ rotation: Number(e.target.value) })}
+              className="w-full accent-indigo-500"
+            />
+          </div>
+        )}
       </div>
 
+      {advanced && (<>
       <div>
         <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-white/40">
           Hizalama
@@ -397,6 +409,7 @@ export function TextPropertiesPanel({ layer, format, onChange, onDelete }: Props
           onChange={(v) => update({ glowOpacity: v / 100 })}
         />
       </CollapsibleSection>
+      </>)}
     </div>
   )
 }

@@ -23,6 +23,7 @@ interface Props {
 export function EditorStep({ state, onUpdate, onBack, onNext }: Props) {
   const [maxSize, setMaxSize] = useState(() => Math.min(560, window.innerHeight - 240))
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
+  const [advancedMode, setAdvancedMode] = useState(false)
   const [suggesting, setSuggesting] = useState(false)
   const [aiRefining, setAiRefining] = useState(false)
   const [aiTexting, setAiTexting] = useState(false)
@@ -294,35 +295,40 @@ export function EditorStep({ state, onUpdate, onBack, onNext }: Props) {
             >
               {aiMegaing ? '⏳ AI tasarlıyor...' : '🎁 Tam Paket AI'}
             </button>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={handleSuggest}
-                disabled={suggesting || aiRefining || aiTexting || aiMegaing}
-                className="flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-fuchsia-500/80 to-indigo-500/80 px-2 py-2 text-xs font-medium text-white shadow-md shadow-fuchsia-500/20 transition hover:from-fuchsia-400 hover:to-indigo-400 disabled:opacity-60"
-                title="Arka plana en uygun stil — anında, offline"
-              >
-                {suggesting ? '⏳' : '🪄 Akıllı Stil'}
-              </button>
-              <button
-                type="button"
-                onClick={handleAIRefine}
-                disabled={suggesting || aiRefining || aiTexting || aiMegaing}
-                className="flex items-center justify-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.04] px-2 py-2 text-xs font-medium text-white/80 transition hover:border-fuchsia-400 hover:bg-fuchsia-500/10 hover:text-white disabled:opacity-60"
-                title="Online AI ile detaylı stil önerisi"
-              >
-                {aiRefining ? '⏳' : '🤖 AI Stil'}
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={handleSuggestText}
-              disabled={suggesting || aiRefining || aiTexting || aiMegaing}
-              className="flex items-center justify-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.04] px-2 py-2 text-xs font-medium text-white/80 transition hover:border-amber-400 hover:bg-amber-500/10 hover:text-white disabled:opacity-60"
-              title="AI'dan 3 yazı önerisi al — kısalt, güçlendir, alternatif"
-            >
-              {aiTexting ? '⏳ Yazı düşünülüyor...' : '✨ AI Yazı Öner'}
-            </button>
+
+            {advancedMode && (
+              <>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSuggest}
+                    disabled={suggesting || aiRefining || aiTexting || aiMegaing}
+                    className="flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-fuchsia-500/80 to-indigo-500/80 px-2 py-2 text-xs font-medium text-white shadow-md shadow-fuchsia-500/20 transition hover:from-fuchsia-400 hover:to-indigo-400 disabled:opacity-60"
+                    title="Arka plana en uygun stil — anında, offline"
+                  >
+                    {suggesting ? '⏳' : '🪄 Akıllı Stil'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAIRefine}
+                    disabled={suggesting || aiRefining || aiTexting || aiMegaing}
+                    className="flex items-center justify-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.04] px-2 py-2 text-xs font-medium text-white/80 transition hover:border-fuchsia-400 hover:bg-fuchsia-500/10 hover:text-white disabled:opacity-60"
+                    title="Online AI ile detaylı stil önerisi"
+                  >
+                    {aiRefining ? '⏳' : '🤖 AI Stil'}
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSuggestText}
+                  disabled={suggesting || aiRefining || aiTexting || aiMegaing}
+                  className="flex items-center justify-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.04] px-2 py-2 text-xs font-medium text-white/80 transition hover:border-amber-400 hover:bg-amber-500/10 hover:text-white disabled:opacity-60"
+                  title="AI'dan 3 yazı önerisi al — kısalt, güçlendir, alternatif"
+                >
+                  {aiTexting ? '⏳ Yazı düşünülüyor...' : '✨ AI Yazı Öner'}
+                </button>
+              </>
+            )}
           </div>
 
           {/* Text suggestions panel */}
@@ -447,6 +453,21 @@ export function EditorStep({ state, onUpdate, onBack, onNext }: Props) {
             onChange={(f) => onUpdate({ filter: f })}
             disabled={filterDisabled}
           />
+
+          {/* Advanced mode toggle */}
+          <button
+            type="button"
+            onClick={() => setAdvancedMode((v) => !v)}
+            className={[
+              'mt-auto flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition',
+              advancedMode
+                ? 'border-indigo-400/50 bg-indigo-500/10 text-indigo-200'
+                : 'border-white/10 bg-white/[0.03] text-white/60 hover:bg-white/[0.06]',
+            ].join(' ')}
+            title="Detaylı ayarları aç/kapa (font, gölge, glow, kontur, BG, paragraf, açı...)"
+          >
+            {advancedMode ? '▼ Sade görünüme dön' : '🔧 Gelişmiş ayarları aç'}
+          </button>
         </div>
 
         {/* MIDDLE: Canvas (order 1 on mobile — show first) */}
@@ -479,6 +500,7 @@ export function EditorStep({ state, onUpdate, onBack, onNext }: Props) {
             <TextPropertiesPanel
               layer={selectedLayer}
               format={state.format}
+              advanced={advancedMode}
               onChange={(next) => updateLayer(selectedLayer.id, next)}
               onDelete={() => deleteLayer(selectedLayer.id)}
             />
