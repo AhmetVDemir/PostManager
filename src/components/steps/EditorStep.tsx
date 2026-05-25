@@ -291,9 +291,9 @@ export function EditorStep({ state, onUpdate, onBack, onNext }: Props) {
               onClick={handleMegaAI}
               disabled={suggesting || aiRefining || aiTexting || aiMegaing}
               className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-emerald-500 via-fuchsia-500 to-indigo-500 px-3 py-3 text-sm font-bold text-white shadow-md shadow-fuchsia-500/30 transition hover:brightness-110 disabled:opacity-60"
-              title="AI hem yazıyı hem stili önerip otomatik uygular"
+              title="AI hem yazıyı hem stili senin için seçip uygulasın — tek tıkla hazır post"
             >
-              {aiMegaing ? '⏳ AI tasarlıyor...' : '🎁 Tam Paket AI'}
+              {aiMegaing ? '⏳ AI tasarlıyor...' : "✨ AI'ya bırak"}
             </button>
 
             {advancedMode && (
@@ -378,10 +378,10 @@ export function EditorStep({ state, onUpdate, onBack, onNext }: Props) {
                     ].join(' ')}
                   >
                     {lastSuggestion.source === 'mega'
-                  ? '🎁 Tam Paket AI'
+                  ? "✨ AI'nın tasarımı"
                   : lastSuggestion.source === 'ai'
                   ? '🤖 AI önerisi'
-                  : '🪄 Heuristic öneri'}: {lastSuggestion.presetLabel}
+                  : '🪄 Hızlı öneri'}: {lastSuggestion.presetLabel}
                   </div>
                   <div
                     className={[
