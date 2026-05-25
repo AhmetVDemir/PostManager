@@ -10,7 +10,7 @@ import { EmojiPicker } from '../EmojiPicker'
 import { loadGoogleFont, FONTS_BY_MOOD } from '../../data/fonts'
 import { TEXT_STYLE_PRESETS, applyStylePreset } from '../../data/textStylePresets'
 import { analyzeBackground, suggestStyle } from '../../services/imageAnalysis'
-import { suggestStyleWithAI, CloudAIError } from '../../services/cloudAI'
+import { suggestStyleWithAI, suggestTextWithAI, suggestMegaWithAI, CloudAIError } from '../../services/cloudAI'
 import { AIErrorBanner } from '../editor/AIErrorBanner'
 
 interface Props {
@@ -25,14 +25,17 @@ export function EditorStep({ state, onUpdate, onBack, onNext }: Props) {
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [suggesting, setSuggesting] = useState(false)
   const [aiRefining, setAiRefining] = useState(false)
+  const [aiTexting, setAiTexting] = useState(false)
+  const [aiMegaing, setAiMegaing] = useState(false)
   const [lastSuggestion, setLastSuggestion] = useState<{
     presetLabel: string
     presetId: string
     reasoning: string
-    source: 'heuristic' | 'ai'
+    source: 'heuristic' | 'ai' | 'mega'
     appliedToId: string
     previousLayer: TextLayer | null // null = new layer was created
   } | null>(null)
+  const [textSuggestions, setTextSuggestions] = useState<{ list: string[]; reasoning: string } | null>(null)
   const [aiError, setAiError] = useState<CloudAIError | string | null>(null)
 
   useEffect(() => {
@@ -99,7 +102,8 @@ export function EditorStep({ state, onUpdate, onBack, onNext }: Props) {
     presetId: string,
     textColor: string,
     reasoning: string,
-    source: 'heuristic' | 'ai',
+    source: 'heuristic' | 'ai' | 'mega',
+    textOverride?: string,
   ) => {
     const preset = TEXT_STYLE_PRESETS.find((p) => p.id === presetId) ?? TEXT_STYLE_PRESETS[0]
 
@@ -118,6 +122,7 @@ export function EditorStep({ state, onUpdate, onBack, onNext }: Props) {
       appliedToId = target.id
       const updated = applyStylePreset(preset, target)
       if (!preset.apply.color) updated.color = textColor
+      if (textOverride) updated.text = textOverride
       updateLayer(target.id, updated)
       onUpdate({ selectedLayerId: target.id })
     } else {
@@ -125,7 +130,7 @@ export function EditorStep({ state, onUpdate, onBack, onNext }: Props) {
       const newLayer = createTextLayer(state.format)
       const styled = applyStylePreset(preset, newLayer)
       if (!preset.apply.color) styled.color = textColor
-      styled.text = 'Yazınız buraya'
+      styled.text = textOverride || 'Yazınız buraya'
       appliedToId = styled.id
       updateLayers([...state.layers, styled], styled.id)
     }
@@ -197,6 +202,75 @@ export function EditorStep({ state, onUpdate, onBack, onNext }: Props) {
     }
   }
 
+  /** D — AI'dan 3 yazı önerisi al, kullanıcı listeden seçecek */
+  const handleSuggestText = async () => {
+    setAiTexting(true)
+    setAiError(null)
+    setTextSuggestions(null)
+    try {
+      const targetText =
+        (selectedLayer?.type === 'text' ? selectedLayer.text : null) ??
+        state.layers.find((l): l is TextLayer => l.type === 'text')?.text ??
+        ''
+      const sug = await suggestTextWithAI(state.background, targetText)
+      setTextSuggestions({ list: sug.suggestions, reasoning: sug.reasoning })
+    } catch (e) {
+      if (e instanceof CloudAIError) setAiError(e)
+      else setAiError(e instanceof Error ? e.message : 'Bilinmeyen hata')
+    } finally {
+      setAiTexting(false)
+    }
+  }
+
+  /** Kullanıcı text önerisinden birini seçince — seçili veya yeni text layer'a uygula */
+  const applyTextSuggestion = (text: string) => {
+    const target = selectedLayer?.type === 'text' ? selectedLayer : null
+    if (target) {
+      const previousLayer = { ...target }
+      updateLayer(target.id, { ...target, text })
+      setLastSuggestion({
+        presetLabel: 'AI yazı önerisi',
+        presetId: '',
+        reasoning: `Yazı önerisi uygulandı: "${text.slice(0, 60)}"`,
+        source: 'ai',
+        appliedToId: target.id,
+        previousLayer,
+      })
+    } else {
+      const newLayer = createTextLayer(state.format)
+      newLayer.text = text
+      updateLayers([...state.layers, newLayer], newLayer.id)
+      setLastSuggestion({
+        presetLabel: 'AI yazı önerisi',
+        presetId: '',
+        reasoning: `Yeni yazı eklendi: "${text.slice(0, 60)}"`,
+        source: 'ai',
+        appliedToId: newLayer.id,
+        previousLayer: null,
+      })
+    }
+    setTextSuggestions(null)
+  }
+
+  /** G — Mega: caption + stil + renk birden uygulansın */
+  const handleMegaAI = async () => {
+    setAiMegaing(true)
+    setAiError(null)
+    try {
+      const targetText =
+        (selectedLayer?.type === 'text' ? selectedLayer.text : null) ??
+        state.layers.find((l): l is TextLayer => l.type === 'text')?.text ??
+        ''
+      const sug = await suggestMegaWithAI(state.background, targetText)
+      await applySuggestion(sug.presetId, sug.textColor, sug.reasoning, 'mega', sug.caption)
+    } catch (e) {
+      if (e instanceof CloudAIError) setAiError(e)
+      else setAiError(e instanceof Error ? e.message : 'Bilinmeyen hata')
+    } finally {
+      setAiMegaing(false)
+    }
+  }
+
   return (
     <div className="mx-auto flex max-w-[1400px] flex-col gap-4 px-4">
       <div className="text-center">
@@ -209,32 +283,82 @@ export function EditorStep({ state, onUpdate, onBack, onNext }: Props) {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_1fr_340px]">
         {/* LEFT: Layer list + filter (order 2 on mobile, first on desktop) */}
         <div className="order-2 flex flex-col gap-4 lg:order-1 lg:max-h-[75vh] lg:overflow-y-auto lg:pr-2">
-          {/* AI suggestion */}
+          {/* AI suggestions */}
           <div className="flex flex-col gap-2">
             <button
               type="button"
-              onClick={handleSuggest}
-              disabled={suggesting || aiRefining}
-              className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-fuchsia-500 to-indigo-500 px-3 py-2.5 text-sm font-semibold text-white shadow-md shadow-fuchsia-500/30 transition hover:from-fuchsia-400 hover:to-indigo-400 disabled:opacity-60"
-              title="Arka plana en uygun font + renk + efekti otomatik seç (anında, offline)"
+              onClick={handleMegaAI}
+              disabled={suggesting || aiRefining || aiTexting || aiMegaing}
+              className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-emerald-500 via-fuchsia-500 to-indigo-500 px-3 py-3 text-sm font-bold text-white shadow-md shadow-fuchsia-500/30 transition hover:brightness-110 disabled:opacity-60"
+              title="AI hem yazıyı hem stili önerip otomatik uygular"
             >
-              {suggesting ? '⏳ Analiz ediliyor...' : '🪄 Akıllı Öner'}
+              {aiMegaing ? '⏳ AI tasarlıyor...' : '🎁 Tam Paket AI'}
             </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={handleSuggest}
+                disabled={suggesting || aiRefining || aiTexting || aiMegaing}
+                className="flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-fuchsia-500/80 to-indigo-500/80 px-2 py-2 text-xs font-medium text-white shadow-md shadow-fuchsia-500/20 transition hover:from-fuchsia-400 hover:to-indigo-400 disabled:opacity-60"
+                title="Arka plana en uygun stil — anında, offline"
+              >
+                {suggesting ? '⏳' : '🪄 Akıllı Stil'}
+              </button>
+              <button
+                type="button"
+                onClick={handleAIRefine}
+                disabled={suggesting || aiRefining || aiTexting || aiMegaing}
+                className="flex items-center justify-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.04] px-2 py-2 text-xs font-medium text-white/80 transition hover:border-fuchsia-400 hover:bg-fuchsia-500/10 hover:text-white disabled:opacity-60"
+                title="Online AI ile detaylı stil önerisi"
+              >
+                {aiRefining ? '⏳' : '🤖 AI Stil'}
+              </button>
+            </div>
             <button
               type="button"
-              onClick={handleAIRefine}
-              disabled={suggesting || aiRefining}
-              className="flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] px-3 py-2 text-xs font-medium text-white/80 transition hover:border-fuchsia-400 hover:bg-fuchsia-500/10 hover:text-white disabled:opacity-60"
-              title="Online AI ile daha akıllı öneri al (internet gerekir, ücretsiz, key'siz)"
+              onClick={handleSuggestText}
+              disabled={suggesting || aiRefining || aiTexting || aiMegaing}
+              className="flex items-center justify-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.04] px-2 py-2 text-xs font-medium text-white/80 transition hover:border-amber-400 hover:bg-amber-500/10 hover:text-white disabled:opacity-60"
+              title="AI'dan 3 yazı önerisi al — kısalt, güçlendir, alternatif"
             >
-              {aiRefining ? '⏳ AI düşünüyor...' : '🤖 AI ile geliştir'}
+              {aiTexting ? '⏳ Yazı düşünülüyor...' : '✨ AI Yazı Öner'}
             </button>
           </div>
+
+          {/* Text suggestions panel */}
+          {textSuggestions && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs">
+              <div className="mb-1 flex items-center justify-between">
+                <div className="font-semibold text-amber-200">✨ AI yazı önerileri</div>
+                <button
+                  type="button"
+                  onClick={() => setTextSuggestions(null)}
+                  className="rounded p-0.5 text-amber-300/60 hover:bg-amber-500/15 hover:text-amber-100"
+                  title="Kapat"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="mb-2 text-amber-100/70">{textSuggestions.reasoning}</div>
+              <div className="flex flex-col gap-1.5">
+                {textSuggestions.list.map((s, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => applyTextSuggestion(s)}
+                    className="rounded-md border border-amber-500/20 bg-amber-500/5 px-2.5 py-1.5 text-left text-amber-100 transition hover:border-amber-400 hover:bg-amber-500/15"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {lastSuggestion && (
             <div
               className={[
                 'rounded-lg border px-3 py-2.5 text-xs',
-                lastSuggestion.source === 'ai'
+                lastSuggestion.source !== 'heuristic'
                   ? 'border-emerald-500/30 bg-emerald-500/10'
                   : 'border-fuchsia-500/30 bg-fuchsia-500/10',
               ].join(' ')}
@@ -247,7 +371,11 @@ export function EditorStep({ state, onUpdate, onBack, onNext }: Props) {
                       lastSuggestion.source === 'ai' ? 'text-emerald-200' : 'text-fuchsia-200',
                     ].join(' ')}
                   >
-                    {lastSuggestion.source === 'ai' ? '🤖 AI önerisi' : '🪄 Heuristic öneri'}: {lastSuggestion.presetLabel}
+                    {lastSuggestion.source === 'mega'
+                  ? '🎁 Tam Paket AI'
+                  : lastSuggestion.source === 'ai'
+                  ? '🤖 AI önerisi'
+                  : '🪄 Heuristic öneri'}: {lastSuggestion.presetLabel}
                   </div>
                   <div
                     className={[

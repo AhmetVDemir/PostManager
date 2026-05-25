@@ -38,7 +38,31 @@ export class CloudAIError extends Error {
   }
 }
 
-interface ServerSuggestion {
+interface ServerStyleSuggestion {
+  presetId: string
+  textColor: string
+  reasoning: string
+}
+
+interface ServerTextSuggestion {
+  suggestions: string[]
+  reasoning: string
+}
+
+interface ServerMegaSuggestion {
+  caption: string
+  presetId: string
+  textColor: string
+  reasoning: string
+}
+
+export interface TextOnlySuggestion {
+  suggestions: string[]
+  reasoning: string
+}
+
+export interface MegaSuggestion {
+  caption: string
   presetId: string
   textColor: string
   reasoning: string
@@ -54,6 +78,9 @@ const PRESET_IDS = [
   'elegant-serif',
   'sticker',
   'fire',
+  'highlight-yellow',
+  'plate-dark',
+  'plate-white',
 ] as const
 
 export async function suggestStyleWithAI(
@@ -74,7 +101,7 @@ export async function suggestStyleWithAI(
     res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ background, headline }),
+      body: JSON.stringify({ task: 'style', background, headline }),
     })
   } catch (e) {
     console.error('[CloudAI] fetch failed', { ...ctx, error: e })
@@ -127,9 +154,9 @@ export async function suggestStyleWithAI(
     throw new CloudAIError('upstream-error', detail || `Server returned ${res.status}: ${raw.slice(0, 200)}`)
   }
 
-  let data: ServerSuggestion
+  let data: ServerStyleSuggestion
   try {
-    data = (await res.json()) as ServerSuggestion
+    data = (await res.json()) as ServerStyleSuggestion
   } catch (e) {
     console.error('[CloudAI] response parse failed', e)
     throw new CloudAIError('bad-response', 'Cannot parse server response')
@@ -147,4 +174,108 @@ export async function suggestStyleWithAI(
     textColor: /^#[0-9a-fA-F]{6}$/.test(data.textColor) ? data.textColor : '#ffffff',
     reasoning: data.reasoning ?? '',
   }
+}
+
+/**
+ * AI'dan yazı içeriği önerileri al (3 alternatif Türkçe caption).
+ * D — yazı içeriği önerisi.
+ */
+export async function suggestTextWithAI(
+  background: Background,
+  currentText: string,
+): Promise<TextOnlySuggestion> {
+  const data = await callApi<ServerTextSuggestion>({ task: 'text', background, currentText })
+  if (!Array.isArray(data.suggestions) || data.suggestions.length === 0) {
+    throw new CloudAIError('bad-response', 'No text suggestions returned')
+  }
+  return { suggestions: data.suggestions, reasoning: data.reasoning ?? '' }
+}
+
+/**
+ * Mega-suggest: hem caption hem stil tek seferde.
+ * G — AI tam uygulama.
+ */
+export async function suggestMegaWithAI(
+  background: Background,
+  currentText: string,
+): Promise<MegaSuggestion> {
+  const data = await callApi<ServerMegaSuggestion>({ task: 'mega', background, currentText })
+  if (!data.presetId || !(PRESET_IDS as readonly string[]).includes(data.presetId)) {
+    throw new CloudAIError('bad-response', `Unknown presetId: ${data.presetId}`)
+  }
+  return {
+    caption: data.caption ?? currentText,
+    presetId: data.presetId,
+    textColor: /^#[0-9a-fA-F]{6}$/.test(data.textColor) ? data.textColor : '#ffffff',
+    reasoning: data.reasoning ?? '',
+  }
+}
+
+/** Shared HTTP call to /api/suggest with error mapping. */
+async function callApi<T>(payload: Record<string, unknown>): Promise<T> {
+  const endpoint = '/api/suggest'
+  const ctx = {
+    endpoint,
+    task: payload.task,
+    origin: typeof window !== 'undefined' ? window.location.origin : '(no window)',
+  }
+  console.info('[CloudAI] → POST', ctx)
+
+  let res: Response
+  try {
+    res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+  } catch (e) {
+    console.error('[CloudAI] fetch failed', { ...ctx, error: e })
+    throw new CloudAIError(
+      'network-error',
+      `Network error (${ctx.origin}${endpoint}): ${e instanceof Error ? e.message : String(e)}. Tarayıcının F12 → Network sekmesinden detaya bak.`,
+    )
+  }
+  console.info('[CloudAI] ← status', res.status)
+
+  if (res.status === 404) {
+    throw new CloudAIError(
+      'dev-no-function',
+      "Dev modunda /api/suggest mevcut değil. Production'da (Cloudflare Pages'te) çalışır.",
+    )
+  }
+  if (res.status === 503) {
+    throw new CloudAIError(
+      'not-configured',
+      "Sunucuda LLM API key tanımlı değil. Cloudflare Pages env vars'a LLM_API_KEY ekleyin.",
+    )
+  }
+  if (res.status === 429) {
+    let info: RateLimitInfo | undefined
+    try {
+      info = (await res.json()) as RateLimitInfo
+    } catch {/* ignore */}
+    throw new CloudAIError(
+      'rate-limit',
+      "Günlük AI istek limitin doldu. Yarın resetlenecek — veya doc/DEPLOY.md'deki başka bir provider'a geç.",
+      info,
+    )
+  }
+  if (res.status === 401 || res.status === 403) {
+    throw new CloudAIError(
+      'auth-failed',
+      'API key geçersiz veya iptal edilmiş. Cloudflare Pages → Settings → Variables → LLM_API_KEY değerini güncelle ve Retry deployment yap.',
+    )
+  }
+  if (!res.ok) {
+    let detail = ''
+    let raw = ''
+    try {
+      raw = await res.text()
+      const data = JSON.parse(raw) as { error?: string; detail?: string }
+      detail = data.detail ? `${data.error}: ${data.detail}` : data.error ?? ''
+    } catch {/* not json */}
+    console.error('[CloudAI] upstream error', { status: res.status, body: raw.slice(0, 400) })
+    throw new CloudAIError('upstream-error', detail || `Server returned ${res.status}: ${raw.slice(0, 200)}`)
+  }
+  return (await res.json()) as T
 }
