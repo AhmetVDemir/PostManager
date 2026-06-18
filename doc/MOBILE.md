@@ -133,7 +133,7 @@ USB ile bağlı bir telefonda dev server'a bağlanmak için:
 | Hata | Çözüm |
 |---|---|
 | `gradle: command not found` | Android Studio'yu aç, ilk kez kurulum sihirbazını tamamla. Gradle wrapper indirilir. |
-| Build error: "Could not find tools.jar" | JDK 17 yüklü değil veya `JAVA_HOME` set değil. Microsoft OpenJDK 17 yükle. |
+| `Cannot find a Java installation matching languageVersion=21` veya `invalid source release: 21` | Capacitor 8 JDK 21 ister. JDK yüklü olsa bile JAVA_HOME farklı bir JDK'yı gösteriyor olabilir (örn React Native projesi için JDK 17). Çözüm: [Microsoft OpenJDK 21](https://learn.microsoft.com/en-us/java/openjdk/download#openjdk-21) yükle, sonra `android/gradle.properties`'te `org.gradle.java.home`'u kurulum yoluna ayarla (örn `C:\\Program Files\\Microsoft\\jdk-21.0.11.10-hotspot`). Bu sadece bu projeye uygulanır — diğer projelerin gradle ayarlarını etkilemez. |
 | `cap sync` "missing dist directory" | Önce `npm run build` çalıştır, sonra `cap sync`. `build:mobile` script'i bunu birleştirir. |
 | Telefonda "uygulama yüklenemedi" | Bilinmeyen kaynaklardan yükleme izni ver: Ayarlar → Güvenlik → Bilinmeyen kaynaklar (Android 8+ için her uygulama bazında) |
 | AI butonu "network error" | `capacitor.config.ts`'te server.url unutulmuş olabilir. Production için boşalt veya kaldır. |
