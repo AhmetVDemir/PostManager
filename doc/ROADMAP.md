@@ -175,6 +175,46 @@ Mevcut: Vintage, B&W, Sıcak, Soğuk, Solgun, Canlı, Sepya, Noir, Berrak, Oriji
 
 ---
 
+## 🎬 Bağımsız proje fikri: **FrameToVideo**
+
+> PostManager'a entegre edilmeyecek — ayrı bir uygulama. Burada sadece fikri arşive almak için.
+
+**İstek**: Kullanıcı 2 görsel verir (başlangıç + bitiş frame). AI arasını akıcı animasyon olarak doldurup 3-10 saniyelik MP4 üretir.
+
+**Mimari önerisi** — PostManager iskelet'inin neredeyse aynısı:
+- React + TS + Tailwind + Vite
+- Cloudflare Pages + Functions (server-side AI proxy)
+- Custom domain (örn. `video.muhyi.academy` veya başka bir alt domain)
+
+**AI yaklaşımları:**
+
+| Yaklaşım | Maliyet | Karmaşıklık | Kalite |
+|---|---|---|---|
+| **Replicate API** (RIFE / FILM / SVD) | $1 free → 50+ video, sonra ~$0.01/sn | Düşük | Yüksek |
+| **Luma Dream Machine API** | 30 video/ay free, sonra $9/ay | Düşük | En yüksek (kameralı motion) |
+| **Pika Labs API** | 250 credit free start | Düşük | İyi |
+| **Runway Gen-3** | 125 credit free | Düşük | İyi |
+| **Browser-içi AI** (Transformers.js + FILM + FFmpeg.wasm) | $0 sonsuza dek | Yüksek | Orta-yüksek, ~150MB ilk indirme |
+
+**Önerilen MVP plan**:
+1. Yeni klasör `C:\Users\ahmet\Project\FrameToVideo` (veya benzeri ad)
+2. PostManager iskeletini kopyala (vite + react + tailwind)
+3. Backend: Cloudflare Function `/api/render-video` proxy (default Replicate)
+4. Frontend: 2 görsel upload + süre slider (3-10 sn) + stil seçimi + "Üret" → MP4 indir
+5. Hosting: Cloudflare Pages, custom domain
+
+**Tahmini efor**: 4-6 saat MVP, başlangıç + bitiş frame interpolasyonu çalışır demo.
+
+**Notlar:**
+- Pollinations.ai gibi tarafından deprecate edilebileceği için ana provider olarak güvenli olanı seç (Replicate veya Luma)
+- API key Cloudflare env vars'ta tutulur — bundle'a girmez
+- FFmpeg.wasm browser'da MP4 encoding için kullanılabilir (Konva animation frame'lerini birleştirir)
+- Geleceğe yönelik: PostManager + FrameToVideo bir "Sosyal medya araç paketi" markası altında birleştirilebilir
+
+**Tartışma tarihi**: 24 Mayıs 2026 (kullanıcı sordu, ileride başlanacak).
+
+---
+
 ## 📝 Notlar — kullanıcı talepleri arşivi
 
 ### 23 Mayıs 2026 — sade mod & paragraf

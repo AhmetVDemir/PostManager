@@ -3,6 +3,7 @@ import type { AppState } from '../../types'
 import { CANVAS_DIMENSIONS } from '../../types'
 import { PostCanvas, type PostCanvasHandle } from '../PostCanvas'
 import { useSaveDirectory } from '../../hooks/useSaveDirectory'
+import { isNative } from '../../utils/platform'
 
 interface Props {
   state: AppState
@@ -59,6 +60,22 @@ export function ExportStep({ state, onBack, onRestart }: Props) {
       }
       const filename = buildFilename(state.format, exportFormat)
 
+      // Native (Android/iOS) — use Capacitor Filesystem + Share
+      if (isNative()) {
+        try {
+          const { nativeFileStorage } = await import('../../services/nativeFileStorage')
+          const res = await nativeFileStorage.save(filename, blob)
+          if (res.ok) {
+            setStatus({ kind: 'ok', msg: `Galeriye kaydedildi: ${filename}` })
+          } else {
+            setStatus({ kind: 'err', msg: `Kayıt başarısız: ${res.reason ?? 'bilinmeyen'}` })
+          }
+        } catch (e) {
+          setStatus({ kind: 'err', msg: `Native kayıt hatası: ${e instanceof Error ? e.message : String(e)}` })
+        }
+        return
+      }
+
       if (save.supported && save.handle) {
         const res = await save.writeFile(filename, blob)
         if (res.ok) {
@@ -113,6 +130,17 @@ export function ExportStep({ state, onBack, onRestart }: Props) {
         </div>
 
         <div className="flex flex-col gap-4">
+          {isNative() ? (
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+              <div className="text-xs font-medium uppercase tracking-wider text-emerald-300/80">Kayıt yeri</div>
+              <div className="mt-1 text-sm text-emerald-100/90">
+                📁 Galeri / Pictures &gt; PostManager
+              </div>
+              <div className="mt-1.5 text-xs text-emerald-100/60">
+                Kayıttan sonra paylaşma menüsü açılır — Instagram, WhatsApp vb. direkt paylaşabilirsin.
+              </div>
+            </div>
+          ) : (
           <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
             <div className="text-xs font-medium uppercase tracking-wider text-white/40">Kayıt klasörü</div>
             <div className="mt-1 text-sm">
@@ -147,6 +175,7 @@ export function ExportStep({ state, onBack, onRestart }: Props) {
               </div>
             )}
           </div>
+          )}
 
           <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
             <div className="text-xs font-medium uppercase tracking-wider text-white/40">Format</div>
@@ -202,7 +231,7 @@ export function ExportStep({ state, onBack, onRestart }: Props) {
             disabled={busy}
             className="rounded-xl bg-emerald-500 px-6 py-4 text-base font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400 disabled:opacity-60"
           >
-            {busy ? 'Kaydediliyor...' : `⬇  ${exportFormat.toUpperCase()} olarak kaydet`}
+            {busy ? 'Kaydediliyor...' : isNative() ? `📲 ${exportFormat.toUpperCase()} kaydet & paylaş` : `⬇  ${exportFormat.toUpperCase()} olarak kaydet`}
           </button>
 
           {status && (

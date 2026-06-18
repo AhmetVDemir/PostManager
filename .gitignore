@@ -67,3 +67,19 @@ $RECYCLE.BIN/
 exports/
 tmp/
 *.tmp.png
+
+# --- Capacitor / Android ---
+# Generated Gradle output, IDE caches, native build artifacts
+android/.gradle/
+android/.idea/
+android/build/
+android/app/build/
+android/captures/
+android/local.properties
+android/app/release/
+android/app/debug/
+# Keep android/ project itself in the repo (config + manifest belong to it)
+# but skip user-specific or generated content above
+*.iml
+*.apk
+*.aab

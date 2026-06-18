@@ -1,6 +1,7 @@
 import type { Background } from '../types'
 import type { StyleSuggestion } from './imageAnalysis'
 import { analyzeBackground } from './imageAnalysis'
+import { getApiBase } from '../utils/platform'
 
 /**
  * /api/suggest endpoint'i Cloudflare Pages Functions ile sağlanır.
@@ -87,7 +88,7 @@ export async function suggestStyleWithAI(
   background: Background,
   headline: string,
 ): Promise<StyleSuggestion> {
-  const endpoint = '/api/suggest'
+  const endpoint = `${getApiBase()}/api/suggest`
   const startedAt = Date.now()
   const ctx = {
     endpoint,
@@ -213,7 +214,7 @@ export async function suggestMegaWithAI(
 
 /** Shared HTTP call to /api/suggest with error mapping. */
 async function callApi<T>(payload: Record<string, unknown>): Promise<T> {
-  const endpoint = '/api/suggest'
+  const endpoint = `${getApiBase()}/api/suggest`
   const ctx = {
     endpoint,
     task: payload.task,
