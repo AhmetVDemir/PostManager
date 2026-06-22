@@ -4,6 +4,11 @@ import { CANVAS_DIMENSIONS } from '../../types'
 import { PostCanvas, type PostCanvasHandle } from '../PostCanvas'
 import { useSaveDirectory } from '../../hooks/useSaveDirectory'
 import { isNative } from '../../utils/platform'
+// Static import — dynamic import() fails in Capacitor WebView under
+// https://localhost/ scheme. Plugin code is gated by isNative() so it's
+// dead code on web (Tailwind tree-shake), but it must be in the main
+// bundle so Capacitor can resolve it at runtime.
+import { nativeFileStorage } from '../../services/nativeFileStorage'
 
 interface Props {
   state: AppState
@@ -63,10 +68,12 @@ export function ExportStep({ state, onBack, onRestart }: Props) {
       // Native (Android/iOS) — use Capacitor Filesystem + Share
       if (isNative()) {
         try {
-          const { nativeFileStorage } = await import('../../services/nativeFileStorage')
           const res = await nativeFileStorage.save(filename, blob)
           if (res.ok) {
-            setStatus({ kind: 'ok', msg: `Galeriye kaydedildi: ${filename}` })
+            setStatus({
+              kind: 'ok',
+              msg: res.reason ? `${filename} (${res.reason})` : `Galeriye kaydedildi: ${filename}`,
+            })
           } else {
             setStatus({ kind: 'err', msg: `Kayıt başarısız: ${res.reason ?? 'bilinmeyen'}` })
           }
