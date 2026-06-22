@@ -1,13 +1,20 @@
 /**
  * Capacitor native file storage adapter.
  *
- * Android'de:
- *   - PNG/JPG'yi Pictures klasörüne yazar (DCIM/PostManager/)
- *   - Sonra @capacitor/share ile native share intent açar →
- *     kullanıcı Instagram, WhatsApp, Galeri'ye direkt paylaşır
+ * Android scoped storage (10+) rules:
+ *   - Directory.ExternalStorage: legacy, requires MANAGE_EXTERNAL_STORAGE
+ *     on Android 11+ — flaky in practice
+ *   - Directory.External: app's own external dir, no permission needed,
+ *     always works, accessible via FileProvider for sharing
  *
- * Web build'inde bu modül çağrılmaz (isNative() guard) — bu yüzden
- * Capacitor plugin import'ları sadece native runtime'da çalışır.
+ * Flow:
+ *   1. Write PNG/JPG to app's external dir (sandbox, no permissions)
+ *   2. Open native Share sheet with the file URI
+ *   3. User picks "Galeriye Kaydet" / Instagram / WhatsApp / etc.
+ *
+ * The share sheet on Android 10+ already exposes a "Save to gallery"
+ * action that copies the file into Pictures/. No manual MediaStore
+ * write needed.
  */
 
 import { Filesystem, Directory } from '@capacitor/filesystem'
@@ -31,10 +38,10 @@ async function blobToBase64(blob: Blob): Promise<string> {
 class NativeFileStorage implements FileStorage {
   readonly supported = true
   readonly hasDestination = true
-  readonly destinationName = 'Galeri / Pictures'
+  readonly destinationName = 'Paylaşım menüsü'
 
   // Native platform doesn't need user to "choose" a folder up-front —
-  // Android scoped storage handles it. We default to public Pictures.
+  // Android share sheet handles the destination.
   async chooseDestination(): Promise<boolean> {
     return true
   }
@@ -44,32 +51,59 @@ class NativeFileStorage implements FileStorage {
   }
 
   async save(filename: string, blob: Blob): Promise<SaveResult> {
+    const base64 = await blobToBase64(blob)
+
+    // Step 1: write to app's own external dir. Works on every Android
+    // version, no permission needed. Path: /storage/emulated/0/Android/
+    //   data/academy.muhyi.postmanager/files/<filename>
+    let uri: string
     try {
-      const base64 = await blobToBase64(blob)
-      // Write under app's external Documents → Pictures/PostManager
-      // Directory.ExternalStorage maps to /storage/emulated/0/ on Android
-      const result = await Filesystem.writeFile({
-        path: `Pictures/PostManager/${filename}`,
+      const res = await Filesystem.writeFile({
+        path: filename,
         data: base64,
-        directory: Directory.ExternalStorage,
-        recursive: true,
+        directory: Directory.External,
       })
-      // Offer native share sheet so user can post directly to Instagram, etc.
-      try {
-        await Share.share({
-          title: 'PostManager',
-          text: 'Yeni post',
-          url: result.uri,
-          dialogTitle: 'Paylaş',
-        })
-      } catch {
-        // Share dialog cancelled — file is still saved, that's fine
-      }
-      return { ok: true, location: result.uri }
+      uri = res.uri
+      console.info('[nativeFileStorage] wrote', uri)
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      return { ok: false, reason: msg }
+      // Fallback to app's private data dir (always writeable) if even
+      // External fails for some reason
+      try {
+        const res = await Filesystem.writeFile({
+          path: filename,
+          data: base64,
+          directory: Directory.Data,
+        })
+        uri = res.uri
+        console.info('[nativeFileStorage] fallback Data wrote', uri)
+      } catch (e2) {
+        const msg = e2 instanceof Error ? e2.message : String(e2)
+        return { ok: false, reason: `Dosya yazılamadı: ${msg}` }
+      }
     }
+
+    // Step 2: open Android share sheet so the user can:
+    //   - Save to Gallery (Photos / Galeri app's "Save" action)
+    //   - Share to Instagram / WhatsApp / Telegram / Mail / ...
+    try {
+      await Share.share({
+        title: 'PostManager',
+        text: 'Yeni post',
+        url: uri,
+        dialogTitle: 'Paylaş veya kaydet',
+      })
+    } catch (e) {
+      // User cancelled the share dialog or no share-capable app is
+      // available. File is still saved — return success with a hint.
+      console.warn('[nativeFileStorage] share dialog dismissed:', e)
+      return {
+        ok: true,
+        location: uri,
+        reason: 'paylaşım menüsü kapatıldı (dosya kaydedildi)',
+      }
+    }
+
+    return { ok: true, location: uri }
   }
 }
 
