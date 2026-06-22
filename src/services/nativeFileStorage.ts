@@ -56,6 +56,9 @@ class NativeFileStorage implements FileStorage {
    * Save directly to the system gallery (Pictures/PostManager).
    * Uses MediaStore API under the hood, so the photo shows up in
    * Galeri / Google Photos / Samsung Gallery without a manual scan.
+   *
+   * v9 of @capacitor-community/media requires an albumIdentifier. We
+   * look up or create the "PostManager" album first, then save into it.
    */
   async saveToGallery(filename: string, blob: Blob): Promise<SaveResult> {
     try {
@@ -64,19 +67,54 @@ class NativeFileStorage implements FileStorage {
       const dataUrl = `data:${mime};base64,${base64}`
       console.info('[nativeFileStorage] saveToGallery →', filename)
 
-      // @capacitor-community/media handles MediaStore on Android, Photos
-      // on iOS. The plugin will prompt for permission on first call.
-      // Album identifier requires createAlbum() first — we'll skip it for
-      // now and let the photo land in the user's default gallery, which
-      // every Android/iOS gallery app indexes automatically.
-      const result = await Media.savePhoto({ path: dataUrl })
-      console.info('[nativeFileStorage] saved to gallery', result, 'name:', filename)
-      return { ok: true, location: 'Galeri' }
+      const albumIdentifier = await this.ensurePostManagerAlbum()
+      console.info('[nativeFileStorage] using albumIdentifier:', albumIdentifier)
+
+      const result = await Media.savePhoto({
+        path: dataUrl,
+        albumIdentifier,
+      })
+      console.info('[nativeFileStorage] saved to gallery', result, 'as', filename)
+      return { ok: true, location: 'Galeri › PostManager' }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       console.error('[nativeFileStorage] saveToGallery failed:', msg)
       return { ok: false, reason: msg }
     }
+  }
+
+  /** Find the "PostManager" album by name, creating it if missing.
+   *  Returns its identifier (required by Media.savePhoto in v9). */
+  private async ensurePostManagerAlbum(): Promise<string> {
+    const name = 'PostManager'
+
+    const findAlbum = async (): Promise<string | null> => {
+      try {
+        const { albums } = await Media.getAlbums()
+        const match = albums.find((a) => a.name === name)
+        return match?.identifier ?? null
+      } catch (e) {
+        console.warn('[nativeFileStorage] getAlbums failed:', e)
+        return null
+      }
+    }
+
+    let id = await findAlbum()
+    if (id) return id
+
+    // Album not present — create it, then look up again
+    try {
+      await Media.createAlbum({ name })
+    } catch (e) {
+      // Already exists / race: still try to find it
+      console.warn('[nativeFileStorage] createAlbum issued warning:', e)
+    }
+    id = await findAlbum()
+    if (id) return id
+
+    throw new Error(
+      'PostManager albümü bulunamadı/oluşturulamadı. Telefonun fotoğraf erişim iznini kontrol et.',
+    )
   }
 
   /**
