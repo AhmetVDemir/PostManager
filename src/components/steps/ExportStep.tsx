@@ -51,6 +51,7 @@ export function ExportStep({ state, onBack, onRestart }: Props) {
     URL.revokeObjectURL(url)
   }
 
+  /** Web path — uses FSA / download. Native path branches via handleNativeAction. */
   const handleSave = async () => {
     setBusy(true)
     setStatus(null)
@@ -64,24 +65,6 @@ export function ExportStep({ state, onBack, onRestart }: Props) {
         return
       }
       const filename = buildFilename(state.format, exportFormat)
-
-      // Native (Android/iOS) — use Capacitor Filesystem + Share
-      if (isNative()) {
-        try {
-          const res = await nativeFileStorage.save(filename, blob)
-          if (res.ok) {
-            setStatus({
-              kind: 'ok',
-              msg: res.reason ? `${filename} (${res.reason})` : `Galeriye kaydedildi: ${filename}`,
-            })
-          } else {
-            setStatus({ kind: 'err', msg: `Kayıt başarısız: ${res.reason ?? 'bilinmeyen'}` })
-          }
-        } catch (e) {
-          setStatus({ kind: 'err', msg: `Native kayıt hatası: ${e instanceof Error ? e.message : String(e)}` })
-        }
-        return
-      }
 
       if (save.supported && save.handle) {
         const res = await save.writeFile(filename, blob)
@@ -102,6 +85,49 @@ export function ExportStep({ state, onBack, onRestart }: Props) {
             : `İndirildi: ${filename}. (Tarayıcı klasör seçimini desteklemiyor — Chrome/Edge öneriyoruz.)`,
         })
       }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /** Native path — separate gallery save and share actions */
+  const handleNativeAction = async (action: 'gallery' | 'share') => {
+    setBusy(true)
+    setStatus(null)
+    try {
+      const blob = await canvasRef.current?.exportPng({
+        mimeType: exportFormat === 'jpeg' ? 'image/jpeg' : 'image/png',
+        quality: jpegQuality / 100,
+      })
+      if (!blob) {
+        setStatus({ kind: 'err', msg: 'Görsel oluşturulamadı' })
+        return
+      }
+      const filename = buildFilename(state.format, exportFormat)
+
+      const res =
+        action === 'gallery'
+          ? await nativeFileStorage.saveToGallery(filename, blob)
+          : await nativeFileStorage.shareFile(filename, blob)
+
+      if (res.ok) {
+        setStatus({
+          kind: 'ok',
+          msg:
+            action === 'gallery'
+              ? `Galeriye kaydedildi: ${filename}`
+              : res.reason
+              ? `${filename} (${res.reason})`
+              : `Paylaşıldı: ${filename}`,
+        })
+      } else {
+        setStatus({
+          kind: 'err',
+          msg: `${action === 'gallery' ? 'Galeriye kayıt' : 'Paylaşım'} başarısız: ${res.reason ?? 'bilinmeyen'}`,
+        })
+      }
+    } catch (e) {
+      setStatus({ kind: 'err', msg: `Native hata: ${e instanceof Error ? e.message : String(e)}` })
     } finally {
       setBusy(false)
     }
@@ -232,14 +258,35 @@ export function ExportStep({ state, onBack, onRestart }: Props) {
             )}
           </div>
 
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={busy}
-            className="rounded-xl bg-emerald-500 px-6 py-4 text-base font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400 disabled:opacity-60"
-          >
-            {busy ? 'Kaydediliyor...' : isNative() ? `📲 ${exportFormat.toUpperCase()} kaydet & paylaş` : `⬇  ${exportFormat.toUpperCase()} olarak kaydet`}
-          </button>
+          {isNative() ? (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => handleNativeAction('gallery')}
+                disabled={busy}
+                className="rounded-xl bg-emerald-500 px-5 py-4 text-base font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400 disabled:opacity-60"
+              >
+                {busy ? 'Çalışıyor...' : '💾 Galeriye Kaydet'}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleNativeAction('share')}
+                disabled={busy}
+                className="rounded-xl border border-white/15 bg-white/[0.06] px-5 py-4 text-base font-semibold text-white transition hover:bg-white/[0.10] disabled:opacity-60"
+              >
+                {busy ? 'Çalışıyor...' : '📤 Paylaş'}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={busy}
+              className="rounded-xl bg-emerald-500 px-6 py-4 text-base font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400 disabled:opacity-60"
+            >
+              {busy ? 'Kaydediliyor...' : `⬇  ${exportFormat.toUpperCase()} olarak kaydet`}
+            </button>
+          )}
 
           {status && (
             <div
