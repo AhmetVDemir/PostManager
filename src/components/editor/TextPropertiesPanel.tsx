@@ -23,6 +23,32 @@ export function TextPropertiesPanel({ layer, format, advanced = false, onChange,
   const [fontsReady, setFontsReady] = useState(false)
   const [showFontPicker, setShowFontPicker] = useState(false)
 
+  // Local textarea state — decoupled from layer.text so keypresses are
+  // instant even while Konva re-runs its (expensive) word-wrap layout
+  // downstream. Without this the Turkish keyboard's IME composition
+  // gets aborted mid-keystroke, making backspace / cursor feel broken.
+  const [localText, setLocalText] = useState(layer.text)
+
+  // When switching to a different layer, sync the local textarea.
+  // Depending only on layer.id avoids clobbering local edits while the
+  // same layer is being typed into.
+  useEffect(() => {
+    setLocalText(layer.text)
+  }, [layer.id])
+
+  // Debounced commit: after 150ms without keystrokes, push localText
+  // into layer.text so the canvas updates. Any further keystroke
+  // resets the timer, so typing a paragraph triggers exactly one
+  // heavy re-render at the end instead of one per character.
+  useEffect(() => {
+    if (localText === layer.text) return
+    const t = setTimeout(() => {
+      onChange({ ...layer, text: localText })
+    }, 150)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localText])
+
   useEffect(() => {
     setFontsReady(false)
     loadAllMoodFonts(mood).then(() => setFontsReady(true))
