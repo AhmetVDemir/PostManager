@@ -1,6 +1,30 @@
 # PostManager — Yol Haritası
 
 > Sürüm planlaması ve ileride yapılacaklar. Yapıldıkça `[x]` ile işaretle, dökümantasyona taşı.
+>
+> **Yeni session başlıyorsan önce [HANDOFF.md](HANDOFF.md)'ı oku** — son durum, aktif bug'lar, sıradaki adımlar orada.
+
+---
+
+## ✅ Tamamlananlar — Android Mobil (12 Temmuz 2026)
+
+- [x] **Capacitor 8 entegrasyonu** — tek codebase, iki target. Web asla bozulmadı.
+- [x] Platform detection (`isNative()`, `getApiBase()`) tek nokta
+- [x] `cloudAI.ts` platform-aware URL (native'de mutlak Cloudflare URL)
+- [x] Native file storage — **iki ayrı buton**:
+  - 💾 Galeriye Kaydet (`@capacitor-community/media` → MediaStore → PostManager albümü)
+  - 📤 Paylaş (Directory.External + Share intent)
+- [x] JDK 21 zorunluluğu — `android/gradle.properties`'te proje-lokal pin
+- [x] AndroidManifest permissions (READ_MEDIA_IMAGES, WRITE_EXTERNAL_STORAGE ≤29)
+- [x] APK build pipeline — `npm run build:mobile` + Gradle wrapper (Android Studio gerekli değil)
+- [x] Debug APK v1.0.5 üretildi (4.79 MB)
+- [x] Bug: dynamic import Capacitor WebView'de fail → static import
+- [x] Bug: Android 11+ scoped storage → Directory.External
+- [x] Bug: albumIdentifier zorunlu (v9) → ensurePostManagerAlbum() helper
+- [x] Bug: Türkçe klavye IME lag → textarea local state + debounce
+- [x] `doc/MOBILE.md` (kurulum + build + release rehberi)
+
+## ✅ Tamamlananlar — v0.3 (23 Mayıs 2026)
 
 ---
 

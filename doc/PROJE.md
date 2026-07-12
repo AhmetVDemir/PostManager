@@ -291,4 +291,9 @@ Deploy talimatları için → [DEPLOY.md](DEPLOY.md)
 |---|---|---|
 | 0.1 | Mayıs 2026 | İlk MVP — 5 step wizard, tek yazı katmanı, görsel-only arka plan |
 | 0.2 | Mayıs 2026 | Freeform editor, Layer abstraction, gradient/düz renk arka plan, görsel kırpma, 9 stil preset, emoji, AI öneri (heuristic + Pollinations→Groq), PWA, mobil responsive |
-| 0.3 | Mayıs 2026 | **Bu sürüm** — Sade Mod (akış sadeleştirme + gelişmiş toggle), yazı arka plan kutusu, paragraf (maxWidth + lineHeight), 63 font (9 mood), 26 filter, AI yazı içeriği önerisi (✨), AI mega-suggest (🎁), 3 yeni preset, AI hata banner |
+| 0.3 | Mayıs 2026 | Sade Mod (akış sadeleştirme + gelişmiş toggle), yazı arka plan kutusu, paragraf (maxWidth + lineHeight), 63 font (9 mood), 26 filter, AI yazı içeriği önerisi (✨), AI mega-suggest (🎁), 3 yeni preset, AI hata banner |
+| 0.4-B | Mayıs 2026 | Segmentli highlight — `[[önemli]]` syntax'i ile yazının bir kısmına ayrı BG (Geylani örneği) |
+| — | Mayıs 2026 | Auto-fit text — yeni katmanlar wrap'li default + fitScale fallback (paragraf yapıştırınca sığar) |
+| Android 1.0.5 | Temmuz 2026 | **Bu sürüm** — Capacitor 8 Android APK (4.79 MB), iki ayrı buton (💾 Galeriye Kaydet + 📤 Paylaş), JDK 21, Türkçe klavye IME lag fix'i. Web ile tek codebase. |
+
+**Ayrıntı**: Session'lar arası devir için [HANDOFF.md](HANDOFF.md) — nerede kaldık + sıradaki adımlar.
